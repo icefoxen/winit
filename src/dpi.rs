@@ -92,28 +92,6 @@ impl PhysicalPosition {
     pub fn new(x: f64, y: f64) -> Self {
         PhysicalPosition { x, y }
     }
-
-    #[inline]
-    pub fn from_logical<T: Into<PhysicalPosition>>(logical: T, dpi_factor: f64) -> Self {
-        logical.into().to_physical(dpi_factor)
-    }
-
-    #[inline]
-    pub fn from_physical<T: Into<PhysicalPosition>>(logical: T, dpi_factor: f64) -> Self {
-        logical.into()
-    }
-
-    #[inline]
-    pub fn to_logical(&self, dpi_factor: f64) -> PhysicalPosition {
-        let x = self.x / dpi_factor;
-        let y = self.y / dpi_factor;
-        PhysicalPosition::new(x, y)
-    }
-
-    #[inline]
-    pub fn to_physical(&self, dpi_factor: f64) -> PhysicalPosition {
-        *self
-    }
 }
 
 impl From<(f64, f64)> for PhysicalPosition {
@@ -161,28 +139,6 @@ impl PhysicalSize {
     #[inline]
     pub fn new(width: f64, height: f64) -> Self {
         PhysicalSize { width, height }
-    }
-
-    #[inline]
-    pub fn from_logical<T: Into<PhysicalSize>>(logical: T, dpi_factor: f64) -> Self {
-        logical.into().to_physical(dpi_factor)
-    }
-
-    #[inline]
-    pub fn to_logical(&self, dpi_factor: f64) -> PhysicalSize {
-        let width = self.width / dpi_factor;
-        let height = self.height / dpi_factor;
-        PhysicalSize::new(width, height)
-    }
-
-    #[inline]
-    pub fn from_physical<T: Into<PhysicalSize>>(logical: T, dpi_factor: f64) -> Self {
-        logical.into()
-    }
-
-    #[inline]
-    pub fn to_physical(&self, dpi_factor: f64) -> PhysicalSize {
-        *self
     }
 }
 

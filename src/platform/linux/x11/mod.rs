@@ -553,8 +553,7 @@ impl EventsLoop {
                             .inner_pos_to_outer(new_inner_position.0, new_inner_position.1);
                         shared_state_lock.position = Some(outer);
                         if moved {
-                            let logical_position =
-                                PhysicalPosition::from_physical(outer, monitor.hidpi_factor);
+                            let logical_position = outer.into();
                             events.moved = Some(WindowEvent::Moved(logical_position));
                         }
                         outer
@@ -625,8 +624,7 @@ impl EventsLoop {
                     }
 
                     if resized {
-                        let logical_size =
-                            PhysicalSize::from_physical(new_inner_size, monitor.hidpi_factor);
+                        let logical_size = new_inner_size.into();
                         events.resized = Some(WindowEvent::Resized(logical_size));
                     }
 
@@ -893,10 +891,10 @@ impl EventsLoop {
                             let dpi_factor =
                                 self.with_window(xev.event, |window| window.get_hidpi_factor());
                             if let Some(dpi_factor) = dpi_factor {
-                                let position = PhysicalPosition::from_physical(
-                                    (xev.event_x as f64, xev.event_y as f64),
-                                    dpi_factor,
-                                );
+                                let position = PhysicalPosition::from((
+                                    xev.event_x as f64,
+                                    xev.event_y as f64,
+                                ));
                                 callback(Event::WindowEvent {
                                     window_id,
                                     event: CursorMoved {
@@ -1005,10 +1003,8 @@ impl EventsLoop {
                         if let Some(dpi_factor) =
                             self.with_window(xev.event, |window| window.get_hidpi_factor())
                         {
-                            let position = PhysicalPosition::from_physical(
-                                (xev.event_x as f64, xev.event_y as f64),
-                                dpi_factor,
-                            );
+                            let position =
+                                PhysicalPosition::from((xev.event_x as f64, xev.event_y as f64));
 
                             // The mods field on this event isn't actually populated, so query the
                             // pointer device. In the future, we can likely remove this round-trip by
@@ -1077,10 +1073,8 @@ impl EventsLoop {
                             .map(|device| device.attachment)
                             .unwrap_or(2);
 
-                        let position = PhysicalPosition::from_physical(
-                            (xev.event_x as f64, xev.event_y as f64),
-                            dpi_factor,
-                        );
+                        let position =
+                            PhysicalPosition::from((xev.event_x as f64, xev.event_y as f64));
                         callback(Event::WindowEvent {
                             window_id,
                             event: CursorMoved {
@@ -1117,10 +1111,8 @@ impl EventsLoop {
                         let dpi_factor =
                             self.with_window(xev.event, |window| window.get_hidpi_factor());
                         if let Some(dpi_factor) = dpi_factor {
-                            let location = PhysicalPosition::from_physical(
-                                (xev.event_x as f64, xev.event_y as f64),
-                                dpi_factor,
-                            );
+                            let location =
+                                PhysicalPosition::from((xev.event_x as f64, xev.event_y as f64));
                             callback(Event::WindowEvent {
                                 window_id,
                                 event: WindowEvent::Touch(Touch {

@@ -108,12 +108,10 @@ impl UnownedWindow {
 
         info!("Guessed window DPI factor: {}", dpi_factor);
 
-        let max_dimensions: Option<(u32, u32)> = window_attrs
-            .max_dimensions
-            .map(|size| size.to_physical(dpi_factor).into());
-        let min_dimensions: Option<(u32, u32)> = window_attrs
-            .min_dimensions
-            .map(|size| size.to_physical(dpi_factor).into());
+        let max_dimensions: Option<(u32, u32)> =
+            window_attrs.max_dimensions.map(|size| size.into());
+        let min_dimensions: Option<(u32, u32)> =
+            window_attrs.min_dimensions.map(|size| size.into());
 
         let dimensions = {
             // x11 only applies constraints when the window is actively resized
@@ -121,7 +119,6 @@ impl UnownedWindow {
             let mut dimensions: (u32, u32) = window_attrs
                 .dimensions
                 .or_else(|| Some((800, 600).into()))
-                .map(|size| size.to_physical(dpi_factor))
                 .map(Into::into)
                 .unwrap();
             if let Some(max) = max_dimensions {
@@ -284,12 +281,8 @@ impl UnownedWindow {
 
             // set size hints
             {
-                let mut min_dimensions = window_attrs
-                    .min_dimensions
-                    .map(|size| size.to_physical(dpi_factor));
-                let mut max_dimensions = window_attrs
-                    .max_dimensions
-                    .map(|size| size.to_physical(dpi_factor));
+                let mut min_dimensions = window_attrs.min_dimensions.map(|size| size);
+                let mut max_dimensions = window_attrs.max_dimensions;
                 if !window_attrs.resizable {
                     if util::wm_name_is_one_of(&["Xfwm4"]) {
                         warn!("To avoid a WM bug, disabling resizing has no effect on Xfwm4");
@@ -424,13 +417,11 @@ impl UnownedWindow {
     }
 
     fn logicalize_coords(&self, (x, y): (i32, i32)) -> PhysicalPosition {
-        let dpi = self.get_hidpi_factor();
-        PhysicalPosition::from_physical((x, y), dpi)
+        PhysicalPosition::from((x, y))
     }
 
     fn logicalize_size(&self, (width, height): (u32, u32)) -> PhysicalSize {
-        let dpi = self.get_hidpi_factor();
-        PhysicalSize::from_physical((width, height), dpi)
+        PhysicalSize::from((width, height))
     }
 
     fn set_pid(&self) -> Option<util::Flusher> {
@@ -817,7 +808,7 @@ impl UnownedWindow {
 
     #[inline]
     pub fn set_position(&self, logical_position: PhysicalPosition) {
-        let (x, y) = logical_position.to_physical(self.get_hidpi_factor()).into();
+        let (x, y) = logical_position.into();
         self.set_position_physical(x, y);
     }
 
@@ -874,7 +865,7 @@ impl UnownedWindow {
     #[inline]
     pub fn set_inner_size(&self, logical_size: PhysicalSize) {
         let dpi_factor = self.get_hidpi_factor();
-        let (width, height) = logical_size.to_physical(dpi_factor).into();
+        let (width, height) = logical_size.into();
         self.set_inner_size_physical(width, height);
     }
 
@@ -897,11 +888,8 @@ impl UnownedWindow {
     #[inline]
     pub fn set_min_dimensions(&self, logical_dimensions: Option<PhysicalSize>) {
         self.shared_state.lock().min_dimensions = logical_dimensions;
-        let physical_dimensions = logical_dimensions.map(|logical_dimensions| {
-            logical_dimensions
-                .to_physical(self.get_hidpi_factor())
-                .into()
-        });
+        let physical_dimensions =
+            logical_dimensions.map(|logical_dimensions| logical_dimensions.into());
         self.set_min_dimensions_physical(physical_dimensions);
     }
 
@@ -913,11 +901,8 @@ impl UnownedWindow {
     #[inline]
     pub fn set_max_dimensions(&self, logical_dimensions: Option<PhysicalSize>) {
         self.shared_state.lock().max_dimensions = logical_dimensions;
-        let physical_dimensions = logical_dimensions.map(|logical_dimensions| {
-            logical_dimensions
-                .to_physical(self.get_hidpi_factor())
-                .into()
-        });
+        let physical_dimensions =
+            logical_dimensions.map(|logical_dimensions| logical_dimensions.into());
         self.set_max_dimensions_physical(physical_dimensions);
     }
 
@@ -979,12 +964,8 @@ impl UnownedWindow {
         };
 
         let dpi_factor = self.get_hidpi_factor();
-        let min_dimensions = logical_min
-            .map(|logical_size| logical_size.to_physical(dpi_factor))
-            .map(Into::into);
-        let max_dimensions = logical_max
-            .map(|logical_size| logical_size.to_physical(dpi_factor))
-            .map(Into::into);
+        let min_dimensions = logical_min.map(Into::into);
+        let max_dimensions = logical_max.map(Into::into);
         self.update_normal_hints(|normal_hints| {
             normal_hints.set_min_size(min_dimensions);
             normal_hints.set_max_size(max_dimensions);
@@ -1237,7 +1218,7 @@ impl UnownedWindow {
 
     #[inline]
     pub fn set_cursor_position(&self, logical_position: PhysicalPosition) -> Result<(), String> {
-        let (x, y) = logical_position.to_physical(self.get_hidpi_factor()).into();
+        let (x, y) = logical_position.into();
         self.set_cursor_position_physical(x, y)
     }
 
@@ -1250,7 +1231,7 @@ impl UnownedWindow {
 
     #[inline]
     pub fn set_ime_spot(&self, logical_spot: PhysicalPosition) {
-        let (x, y) = logical_spot.to_physical(self.get_hidpi_factor()).into();
+        let (x, y) = logical_spot.into();
         self.set_ime_spot_physical(x, y);
     }
 

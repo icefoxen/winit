@@ -136,7 +136,7 @@ impl WindowBuilder {
         self.window.dimensions = Some(self.window.dimensions.unwrap_or_else(|| {
             if let Some(ref monitor) = self.window.fullscreen {
                 // resizing the window to the dimensions of the monitor when fullscreen
-                PhysicalSize::from_physical(monitor.get_dimensions(), 1.0)
+                monitor.get_dimensions().into()
             } else {
                 // default dimensions
                 (1024, 768).into()

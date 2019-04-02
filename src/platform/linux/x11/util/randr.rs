@@ -1,9 +1,9 @@
-use std::str::FromStr;
-use std::{env, slice};
+use std::slice;
 
 use super::*;
 
-pub fn calc_dpi_factor(
+/// WINOT TODO: Keep this available somewhere but don't use it for anything unless asked to.
+pub fn calc_dpi_factor2(
     (width_px, height_px): (u32, u32),
     (width_mm, height_mm): (u64, u64),
 ) -> f64 {
@@ -80,13 +80,7 @@ impl XConnection {
             (*output_info).nameLen as usize,
         );
         let name = String::from_utf8_lossy(name_slice).into();
-        let hidpi_factor = calc_dpi_factor(
-            repr.get_dimensions(),
-            (
-                (*output_info).mm_width as u64,
-                (*output_info).mm_height as u64,
-            ),
-        );
+        let hidpi_factor = 1.0;
         (self.xrandr.XRRFreeOutputInfo)(output_info);
         Some((name, hidpi_factor))
     }
