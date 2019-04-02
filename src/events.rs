@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use {DeviceId, LogicalPosition, LogicalSize, WindowId};
+use {DeviceId, PhysicalPosition, PhysicalSize, WindowId};
 
 /// Describes a generic event.
 #[derive(Clone, Debug, PartialEq)]
@@ -25,10 +25,10 @@ pub enum Event {
 #[derive(Clone, Debug, PartialEq)]
 pub enum WindowEvent {
     /// The size of the window has changed. Contains the client area's new dimensions.
-    Resized(LogicalSize),
+    Resized(PhysicalSize),
 
     /// The position of the window has changed. Contains the window's new position.
-    Moved(LogicalPosition),
+    Moved(PhysicalPosition),
 
     /// The window has been requested to close.
     CloseRequested,
@@ -37,19 +37,19 @@ pub enum WindowEvent {
     Destroyed,
 
     /// A file has been dropped into the window.
-    /// 
+    ///
     /// When the user drops multiple files at once, this event will be emitted for each file
     /// separately.
     DroppedFile(PathBuf),
 
     /// A file is being hovered over the window.
-    /// 
+    ///
     /// When the user hovers multiple files at once, this event will be emitted for each file
     /// separately.
     HoveredFile(PathBuf),
 
     /// A file was hovered, but has exited the window.
-    /// 
+    ///
     /// There will be a single `HoveredFileCancelled` event triggered even if multiple files were
     /// hovered.
     HoveredFileCancelled,
@@ -63,7 +63,10 @@ pub enum WindowEvent {
     Focused(bool),
 
     /// An event from the keyboard has been received.
-    KeyboardInput { device_id: DeviceId, input: KeyboardInput },
+    KeyboardInput {
+        device_id: DeviceId,
+        input: KeyboardInput,
+    },
 
     /// The cursor has moved on the window.
     CursorMoved {
@@ -72,8 +75,8 @@ pub enum WindowEvent {
         /// (x,y) coords in pixels relative to the top-left corner of the window. Because the range of this data is
         /// limited by the display area and it may have been transformed by the OS to implement effects such as cursor
         /// acceleration, it should not be used to implement non-cursor-like interactions such as 3D camera control.
-        position: LogicalPosition,
-        modifiers: ModifiersState
+        position: PhysicalPosition,
+        modifiers: ModifiersState,
     },
 
     /// The cursor has entered the window.
@@ -83,21 +86,38 @@ pub enum WindowEvent {
     CursorLeft { device_id: DeviceId },
 
     /// A mouse wheel movement or touchpad scroll occurred.
-    MouseWheel { device_id: DeviceId, delta: MouseScrollDelta, phase: TouchPhase, modifiers: ModifiersState },
+    MouseWheel {
+        device_id: DeviceId,
+        delta: MouseScrollDelta,
+        phase: TouchPhase,
+        modifiers: ModifiersState,
+    },
 
     /// An mouse button press has been received.
-    MouseInput { device_id: DeviceId, state: ElementState, button: MouseButton, modifiers: ModifiersState },
-
+    MouseInput {
+        device_id: DeviceId,
+        state: ElementState,
+        button: MouseButton,
+        modifiers: ModifiersState,
+    },
 
     /// Touchpad pressure event.
     ///
     /// At the moment, only supported on Apple forcetouch-capable macbooks.
     /// The parameters are: pressure level (value between 0 and 1 representing how hard the touchpad
     /// is being pressed) and stage (integer representing the click level).
-    TouchpadPressure { device_id: DeviceId, pressure: f32, stage: i64 },
+    TouchpadPressure {
+        device_id: DeviceId,
+        pressure: f32,
+        stage: i64,
+    },
 
     /// Motion on some analog axis. May report data redundant to other, more specific events.
-    AxisMotion { device_id: DeviceId, axis: AxisId, value: f64 },
+    AxisMotion {
+        device_id: DeviceId,
+        axis: AxisId,
+        value: f64,
+    },
 
     /// The window needs to be redrawn.
     Refresh,
@@ -148,11 +168,19 @@ pub enum DeviceEvent {
     /// Motion on some analog axis.  This event will be reported for all arbitrary input devices
     /// that winit supports on this platform, including mouse devices.  If the device is a mouse
     /// device then this will be reported alongside the MouseMotion event.
-    Motion { axis: AxisId, value: f64 },
+    Motion {
+        axis: AxisId,
+        value: f64,
+    },
 
-    Button { button: ButtonId, state: ElementState },
+    Button {
+        button: ButtonId,
+        state: ElementState,
+    },
     Key(KeyboardInput),
-    Text { codepoint: char },
+    Text {
+        codepoint: char,
+    },
 }
 
 /// Describes a keyboard input event.
@@ -178,7 +206,7 @@ pub struct KeyboardInput {
     ///
     /// This is tracked internally to avoid tracking errors arising from modifier key state changes when events from
     /// this device are not being delivered to the application, e.g. due to keyboard focus being elsewhere.
-    pub modifiers: ModifiersState
+    pub modifiers: ModifiersState,
 }
 
 /// Describes touch-screen input state.
@@ -188,7 +216,7 @@ pub enum TouchPhase {
     Started,
     Moved,
     Ended,
-    Cancelled
+    Cancelled,
 }
 
 /// Represents touch event
@@ -210,9 +238,9 @@ pub enum TouchPhase {
 pub struct Touch {
     pub device_id: DeviceId,
     pub phase: TouchPhase,
-    pub location: LogicalPosition,
+    pub location: PhysicalPosition,
     /// unique identifier of a finger.
-    pub id: u64
+    pub id: u64,
 }
 
 /// Hardware-dependent keyboard scan code.
@@ -246,19 +274,19 @@ pub enum MouseButton {
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum MouseScrollDelta {
-	/// Amount in lines or rows to scroll in the horizontal
-	/// and vertical directions.
-	///
-	/// Positive values indicate movement forward
-	/// (away from the user) or rightwards.
-	LineDelta(f32, f32),
-	/// Amount in pixels to scroll in the horizontal and
-	/// vertical direction.
-	///
-	/// Scroll events are expressed as a PixelDelta if
-	/// supported by the device (eg. a touchpad) and
-	/// platform.
-	PixelDelta(LogicalPosition),
+    /// Amount in lines or rows to scroll in the horizontal
+    /// and vertical directions.
+    ///
+    /// Positive values indicate movement forward
+    /// (away from the user) or rightwards.
+    LineDelta(f32, f32),
+    /// Amount in pixels to scroll in the horizontal and
+    /// vertical direction.
+    ///
+    /// Scroll events are expressed as a PixelDelta if
+    /// supported by the device (eg. a touchpad) and
+    /// platform.
+    PixelDelta(PhysicalPosition),
 }
 
 /// Symbolic name for a keyboard key.
@@ -418,7 +446,7 @@ pub enum VirtualKeyCode {
     Multiply,
     Mute,
     MyComputer,
-    NavigateForward, // also called "Prior"
+    NavigateForward,  // also called "Prior"
     NavigateBackward, // also called "Next"
     NextTrack,
     NoConvert,
@@ -476,5 +504,5 @@ pub struct ModifiersState {
     /// The "logo" key
     ///
     /// This is the "windows" key on PC and "command" key on Mac.
-    pub logo: bool
+    pub logo: bool,
 }

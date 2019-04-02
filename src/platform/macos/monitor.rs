@@ -6,9 +6,9 @@ use cocoa::base::{id, nil};
 use cocoa::foundation::{NSString, NSUInteger};
 use core_graphics::display::{CGDirectDisplayID, CGDisplay, CGDisplayBounds};
 
-use {PhysicalPosition, PhysicalSize};
-use super::EventsLoop;
 use super::window::{IdRef, Window2};
+use super::EventsLoop;
+use {PhysicalPosition, PhysicalSize};
 
 #[derive(Clone, PartialEq)]
 pub struct MonitorId(CGDirectDisplayID);
@@ -99,10 +99,7 @@ impl MonitorId {
         let display = CGDisplay::new(display_id);
         let height = display.pixels_high();
         let width = display.pixels_wide();
-        PhysicalSize::from_logical(
-            (width as f64, height as f64),
-            self.get_hidpi_factor(),
-        )
+        PhysicalSize::from_logical((width as f64, height as f64), self.get_hidpi_factor())
     }
 
     #[inline]

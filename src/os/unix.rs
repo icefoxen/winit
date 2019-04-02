@@ -6,26 +6,17 @@ use std::sync::Arc;
 
 use sctk::window::{ButtonState, Theme};
 
-use {
-    EventsLoop,
-    LogicalSize,
-    MonitorId,
-    Window,
-    WindowBuilder,
-};
-use platform::{
-    EventsLoop as LinuxEventsLoop,
-    Window as LinuxWindow,
-};
-use platform::x11::XConnection;
 use platform::x11::ffi::XVisualInfo;
+use platform::x11::XConnection;
+use platform::{EventsLoop as LinuxEventsLoop, Window as LinuxWindow};
+use {EventsLoop, MonitorId, PhysicalSize, Window, WindowBuilder};
 
 // TODO: stupid hack so that glutin can do its work
 #[doc(hidden)]
 pub use platform::x11;
 
-pub use platform::XNotSupported;
 pub use platform::x11::util::WindowType as XWindowType;
+pub use platform::XNotSupported;
 
 /// Theme for wayland client side decorations
 ///
@@ -99,11 +90,13 @@ impl Theme for WaylandThemeObject {
 pub trait EventsLoopExt {
     /// Builds a new `EventsLoop` that is forced to use X11.
     fn new_x11() -> Result<Self, XNotSupported>
-        where Self: Sized;
+    where
+        Self: Sized;
 
     /// Builds a new `EventsLoop` that is forced to use Wayland.
     fn new_wayland() -> Self
-        where Self: Sized;
+    where
+        Self: Sized;
 
     /// True if the `EventsLoop` uses Wayland.
     fn is_wayland(&self) -> bool;
@@ -118,12 +111,10 @@ pub trait EventsLoopExt {
 impl EventsLoopExt for EventsLoop {
     #[inline]
     fn new_x11() -> Result<Self, XNotSupported> {
-        LinuxEventsLoop::new_x11().map(|ev|
-            EventsLoop {
-                events_loop: ev,
-                _marker: ::std::marker::PhantomData,
-            }
-        )
+        LinuxEventsLoop::new_x11().map(|ev| EventsLoop {
+            events_loop: ev,
+            _marker: ::std::marker::PhantomData,
+        })
     }
 
     #[inline]
@@ -131,7 +122,7 @@ impl EventsLoopExt for EventsLoop {
         EventsLoop {
             events_loop: match LinuxEventsLoop::new_wayland() {
                 Ok(e) => e,
-                Err(_) => panic!()      // TODO: propagate
+                Err(_) => panic!(), // TODO: propagate
             },
             _marker: ::std::marker::PhantomData,
         }
@@ -215,7 +206,7 @@ impl WindowExt for Window {
     fn get_xlib_window(&self) -> Option<raw::c_ulong> {
         match self.window {
             LinuxWindow::X(ref w) => Some(w.get_xlib_window()),
-            _ => None
+            _ => None,
         }
     }
 
@@ -223,7 +214,7 @@ impl WindowExt for Window {
     fn get_xlib_display(&self) -> Option<*mut raw::c_void> {
         match self.window {
             LinuxWindow::X(ref w) => Some(w.get_xlib_display()),
-            _ => None
+            _ => None,
         }
     }
 
@@ -231,7 +222,7 @@ impl WindowExt for Window {
     fn get_xlib_screen_id(&self) -> Option<raw::c_int> {
         match self.window {
             LinuxWindow::X(ref w) => Some(w.get_xlib_screen_id()),
-            _ => None
+            _ => None,
         }
     }
 
@@ -240,7 +231,7 @@ impl WindowExt for Window {
     fn get_xlib_xconnection(&self) -> Option<Arc<XConnection>> {
         match self.window {
             LinuxWindow::X(ref w) => Some(w.get_xlib_xconnection()),
-            _ => None
+            _ => None,
         }
     }
 
@@ -248,7 +239,7 @@ impl WindowExt for Window {
     fn get_xcb_connection(&self) -> Option<*mut raw::c_void> {
         match self.window {
             LinuxWindow::X(ref w) => Some(w.get_xcb_connection()),
-            _ => None
+            _ => None,
         }
     }
 
@@ -263,7 +254,7 @@ impl WindowExt for Window {
     fn get_wayland_surface(&self) -> Option<*mut raw::c_void> {
         match self.window {
             LinuxWindow::Wayland(ref w) => Some(w.get_surface().c_ptr() as *mut _),
-            _ => None
+            _ => None,
         }
     }
 
@@ -271,7 +262,7 @@ impl WindowExt for Window {
     fn get_wayland_display(&self) -> Option<*mut raw::c_void> {
         match self.window {
             LinuxWindow::Wayland(ref w) => Some(w.get_display().c_ptr() as *mut _),
-            _ => None
+            _ => None,
         }
     }
 
@@ -303,9 +294,9 @@ pub trait WindowBuilderExt {
     /// Build window with `_GTK_THEME_VARIANT` hint set to the specified value. Currently only relevant on X11.
     fn with_gtk_theme_variant(self, variant: String) -> WindowBuilder;
     /// Build window with resize increment hint. Only implemented on X11.
-    fn with_resize_increments(self, increments: LogicalSize) -> WindowBuilder;
+    fn with_resize_increments(self, increments: PhysicalSize) -> WindowBuilder;
     /// Build window with base size hint. Only implemented on X11.
-    fn with_base_size(self, base_size: LogicalSize) -> WindowBuilder;
+    fn with_base_size(self, base_size: PhysicalSize) -> WindowBuilder;
 
     /// Build window with a given application ID. It should match the `.desktop` file distributed with
     /// your program. Only relevant on Wayland.
@@ -318,9 +309,8 @@ pub trait WindowBuilderExt {
 impl WindowBuilderExt for WindowBuilder {
     #[inline]
     fn with_x11_visual<T>(mut self, visual_infos: *const T) -> WindowBuilder {
-        self.platform_specific.visual_infos = Some(
-            unsafe { ptr::read(visual_infos as *const XVisualInfo) }
-        );
+        self.platform_specific.visual_infos =
+            Some(unsafe { ptr::read(visual_infos as *const XVisualInfo) });
         self
     }
 
@@ -349,13 +339,13 @@ impl WindowBuilderExt for WindowBuilder {
     }
 
     #[inline]
-    fn with_resize_increments(mut self, increments: LogicalSize) -> WindowBuilder {
+    fn with_resize_increments(mut self, increments: PhysicalSize) -> WindowBuilder {
         self.platform_specific.resize_increments = Some(increments.into());
         self
     }
 
     #[inline]
-    fn with_base_size(mut self, base_size: LogicalSize) -> WindowBuilder {
+    fn with_base_size(mut self, base_size: PhysicalSize) -> WindowBuilder {
         self.platform_specific.base_size = Some(base_size.into());
         self
     }

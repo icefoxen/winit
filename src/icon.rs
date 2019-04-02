@@ -1,9 +1,9 @@
-use std::{fmt, mem};
 use std::error::Error;
 #[cfg(feature = "icon_loading")]
 use std::io::{BufRead, Seek};
 #[cfg(feature = "icon_loading")]
 use std::path::Path;
+use std::{fmt, mem};
 
 #[cfg(feature = "icon_loading")]
 use image;
@@ -24,9 +24,7 @@ pub(crate) const PIXEL_SIZE: usize = mem::size_of::<Pixel>();
 pub enum BadIcon {
     /// Produced when the length of the `rgba` argument isn't divisible by 4, thus `rgba` can't be
     /// safely interpreted as 32bpp RGBA pixels.
-    ByteCountNotDivisibleBy4 {
-        byte_count: usize,
-    },
+    ByteCountNotDivisibleBy4 { byte_count: usize },
     /// Produced when the number of pixels (`rgba.len() / 4`) isn't equal to `width * height`.
     /// At least one of your arguments is incorrect.
     DimensionsVsPixelCount {
@@ -87,7 +85,9 @@ impl Icon {
     /// `rgba.len() / 4`. Otherwise, this will return a `BadIcon` error.
     pub fn from_rgba(rgba: Vec<u8>, width: u32, height: u32) -> Result<Self, BadIcon> {
         if rgba.len() % PIXEL_SIZE != 0 {
-            return Err(BadIcon::ByteCountNotDivisibleBy4 { byte_count: rgba.len() });
+            return Err(BadIcon::ByteCountNotDivisibleBy4 {
+                byte_count: rgba.len(),
+            });
         }
         let pixel_count = rgba.len() / PIXEL_SIZE;
         if pixel_count != (width * height) as usize {
@@ -98,7 +98,11 @@ impl Icon {
                 pixel_count,
             })
         } else {
-            Ok(Icon { rgba, width, height })
+            Ok(Icon {
+                rgba,
+                width,
+                height,
+            })
         }
     }
 
@@ -152,7 +156,11 @@ impl From<image::DynamicImage> for Icon {
         for (_, _, pixel) in image.pixels() {
             rgba.extend_from_slice(&pixel.to_rgba().data);
         }
-        Icon { rgba, width, height }
+        Icon {
+            rgba,
+            width,
+            height,
+        }
     }
 }
 
@@ -165,6 +173,10 @@ impl From<image::RgbaImage> for Icon {
         for (_, _, pixel) in buf.enumerate_pixels() {
             rgba.extend_from_slice(&pixel.data);
         }
-        Icon { rgba, width, height }
+        Icon {
+            rgba,
+            width,
+            height,
+        }
     }
 }

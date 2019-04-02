@@ -26,9 +26,9 @@ pub use self::window_property::*;
 pub use self::wm::*;
 
 use std::mem;
-use std::ptr;
 use std::ops::BitAnd;
 use std::os::raw::*;
+use std::ptr;
 
 use super::{ffi, XConnection, XError};
 
@@ -48,8 +48,8 @@ pub fn maybe_change<T: PartialEq>(field: &mut Option<T>, value: T) -> bool {
 }
 
 pub fn has_flag<T>(bitset: T, flag: T) -> bool
-where T:
-    Copy + PartialEq + BitAnd<T, Output = T>
+where
+    T: Copy + PartialEq + BitAnd<T, Output = T>,
 {
     bitset & flag == flag
 }

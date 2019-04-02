@@ -126,21 +126,24 @@ impl EventsLoop {
         let env = Environment::from_display_with_cb(
             &display,
             &mut event_queue,
-            move |event, registry| {
-                match event {
-                    GlobalEvent::New { id, ref interface, version } => {
-                        if interface == "wl_seat" {
-                            seat_manager.add_seat(id, version, registry)
-                        }
-                    },
-                    GlobalEvent::Removed { id, ref interface } => {
-                        if interface == "wl_seat" {
-                            seat_manager.remove_seat(id)
-                        }
-                    },
+            move |event, registry| match event {
+                GlobalEvent::New {
+                    id,
+                    ref interface,
+                    version,
+                } => {
+                    if interface == "wl_seat" {
+                        seat_manager.add_seat(id, version, registry)
+                    }
+                }
+                GlobalEvent::Removed { id, ref interface } => {
+                    if interface == "wl_seat" {
+                        seat_manager.remove_seat(id)
+                    }
                 }
             },
-        ).unwrap();
+        )
+        .unwrap();
 
         Ok(EventsLoop {
             display,
@@ -261,7 +264,7 @@ impl EventsLoop {
                     if let Some((w, h)) = newsize {
                         frame.resize(w, h);
                         frame.refresh();
-                        let logical_size = ::LogicalSize::new(w as f64, h as f64);
+                        let logical_size = ::PhysicalSize::new(w as f64, h as f64);
                         sink.send_event(::WindowEvent::Resized(logical_size), wid);
                         *size = (w, h);
                     } else if frame_refresh {
@@ -312,9 +315,7 @@ impl SeatManager {
         };
         let seat = registry
             .bind(min(version, 5), id, move |seat| {
-                seat.implement(move |event, seat| {
-                    seat_data.receive(event, seat)
-                }, ())
+                seat.implement(move |event, seat| seat_data.receive(event, seat), ())
             })
             .unwrap();
         self.store.lock().unwrap().new_seat(&seat);
@@ -491,7 +492,8 @@ impl MonitorId {
         }) {
             Some(Some((w, h))) => (w as u32, h as u32),
             _ => (0, 0),
-        }.into()
+        }
+        .into()
     }
 
     pub fn get_position(&self) -> PhysicalPosition {

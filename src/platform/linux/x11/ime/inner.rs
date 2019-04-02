@@ -1,12 +1,12 @@
+use std::collections::HashMap;
 use std::mem;
 use std::ptr;
 use std::sync::Arc;
-use std::collections::HashMap;
 
 use super::{ffi, XConnection, XError};
 
-use super::input_method::PotentialInputMethods;
 use super::context::ImeContext;
+use super::input_method::PotentialInputMethods;
 
 pub unsafe fn close_im(xconn: &Arc<XConnection>, im: ffi::XIM) -> Result<(), XError> {
     (xconn.xlib.XCloseIM)(im);
@@ -33,10 +33,7 @@ pub struct ImeInner {
 }
 
 impl ImeInner {
-    pub fn new(
-        xconn: Arc<XConnection>,
-        potential_input_methods: PotentialInputMethods,
-    ) -> Self {
+    pub fn new(xconn: Arc<XConnection>, potential_input_methods: PotentialInputMethods) -> Self {
         ImeInner {
             xconn,
             im: ptr::null_mut(),

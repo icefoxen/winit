@@ -1,17 +1,19 @@
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex, Weak};
 
-use {CreationError, MouseCursor, WindowAttributes};
-use dpi::{LogicalPosition, LogicalSize};
-use platform::{MonitorId as PlatformMonitorId, PlatformSpecificWindowBuilderAttributes as PlAttributes};
+use dpi::{PhysicalPosition, PhysicalSize};
+use platform::{
+    MonitorId as PlatformMonitorId, PlatformSpecificWindowBuilderAttributes as PlAttributes,
+};
 use window::MonitorId as RootMonitorId;
+use {CreationError, MouseCursor, WindowAttributes};
 
-use sctk::surface::{get_dpi_factor, get_outputs};
-use sctk::window::{ConceptFrame, Event as WEvent, Window as SWindow, Theme};
-use sctk::reexports::client::{Display, Proxy};
-use sctk::reexports::client::protocol::{wl_seat, wl_surface};
-use sctk::reexports::client::protocol::wl_surface::RequestsTrait as SurfaceRequests;
 use sctk::output::OutputMgr;
+use sctk::reexports::client::protocol::wl_surface::RequestsTrait as SurfaceRequests;
+use sctk::reexports::client::protocol::{wl_seat, wl_surface};
+use sctk::reexports::client::{Display, Proxy};
+use sctk::surface::{get_dpi_factor, get_outputs};
+use sctk::window::{ConceptFrame, Event as WEvent, Theme, Window as SWindow};
 
 use super::{make_wid, EventsLoop, MonitorId, WindowId};
 use platform::platform::wayland::event_loop::{get_available_monitors, get_primary_monitor};
@@ -27,7 +29,11 @@ pub struct Window {
 }
 
 impl Window {
-    pub fn new(evlp: &EventsLoop, attributes: WindowAttributes, pl_attribs: PlAttributes) -> Result<Window, CreationError> {
+    pub fn new(
+        evlp: &EventsLoop,
+        attributes: WindowAttributes,
+        pl_attribs: PlAttributes,
+    ) -> Result<Window, CreationError> {
         let (width, height) = attributes.dimensions.map(Into::into).unwrap_or((800, 600));
         // Create the window
         let size = Arc::new(Mutex::new((width, height)));
@@ -75,7 +81,8 @@ impl Window {
                     }
                 }
             },
-        ).unwrap();
+        )
+        .unwrap();
 
         if let Some(app_id) = pl_attribs.app_id {
             frame.set_app_id(app_id);
@@ -155,28 +162,28 @@ impl Window {
     }
 
     #[inline]
-    pub fn get_position(&self) -> Option<LogicalPosition> {
+    pub fn get_position(&self) -> Option<PhysicalPosition> {
         // Not possible with wayland
         None
     }
 
     #[inline]
-    pub fn get_inner_position(&self) -> Option<LogicalPosition> {
+    pub fn get_inner_position(&self) -> Option<PhysicalPosition> {
         // Not possible with wayland
         None
     }
 
     #[inline]
-    pub fn set_position(&self, _pos: LogicalPosition) {
+    pub fn set_position(&self, _pos: PhysicalPosition) {
         // Not possible with wayland
     }
 
-    pub fn get_inner_size(&self) -> Option<LogicalSize> {
+    pub fn get_inner_size(&self) -> Option<PhysicalSize> {
         Some(self.size.lock().unwrap().clone().into())
     }
 
     #[inline]
-    pub fn get_outer_size(&self) -> Option<LogicalSize> {
+    pub fn get_outer_size(&self) -> Option<PhysicalSize> {
         let (w, h) = self.size.lock().unwrap().clone();
         // let (w, h) = super::wayland_window::add_borders(w as i32, h as i32);
         Some((w, h).into())
@@ -184,20 +191,26 @@ impl Window {
 
     #[inline]
     // NOTE: This will only resize the borders, the contents must be updated by the user
-    pub fn set_inner_size(&self, size: LogicalSize) {
+    pub fn set_inner_size(&self, size: PhysicalSize) {
         let (w, h) = size.into();
         self.frame.lock().unwrap().resize(w, h);
         *(self.size.lock().unwrap()) = (w, h);
     }
 
     #[inline]
-    pub fn set_min_dimensions(&self, dimensions: Option<LogicalSize>) {
-        self.frame.lock().unwrap().set_min_size(dimensions.map(Into::into));
+    pub fn set_min_dimensions(&self, dimensions: Option<PhysicalSize>) {
+        self.frame
+            .lock()
+            .unwrap()
+            .set_min_size(dimensions.map(Into::into));
     }
 
     #[inline]
-    pub fn set_max_dimensions(&self, dimensions: Option<LogicalSize>) {
-        self.frame.lock().unwrap().set_max_size(dimensions.map(Into::into));
+    pub fn set_max_dimensions(&self, dimensions: Option<PhysicalSize>) {
+        self.frame
+            .lock()
+            .unwrap()
+            .set_max_size(dimensions.map(Into::into));
     }
 
     #[inline]
@@ -237,7 +250,6 @@ impl Window {
         }
     }
 
-
     pub fn set_theme<T: Theme>(&self, theme: T) {
         self.frame.lock().unwrap().set_theme(theme)
     }
@@ -258,7 +270,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_cursor_position(&self, _pos: LogicalPosition) -> Result<(), String> {
+    pub fn set_cursor_position(&self, _pos: PhysicalPosition) -> Result<(), String> {
         Err("Setting the cursor position is not yet possible on Wayland.".to_owned())
     }
 
@@ -364,7 +376,16 @@ impl WindowStore {
 
     pub fn for_each<F>(&mut self, mut f: F)
     where
-        F: FnMut(Option<(u32, u32)>, &mut (u32, u32), Option<i32>, bool, bool, bool, WindowId, Option<&mut SWindow<ConceptFrame>>),
+        F: FnMut(
+            Option<(u32, u32)>,
+            &mut (u32, u32),
+            Option<i32>,
+            bool,
+            bool,
+            bool,
+            WindowId,
+            Option<&mut SWindow<ConceptFrame>>,
+        ),
     {
         for window in &mut self.windows {
             let opt_arc = window.frame.upgrade();

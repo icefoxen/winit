@@ -1,13 +1,13 @@
-use std::ptr;
-use std::sync::Arc;
 use std::collections::HashMap;
 use std::os::raw::c_char;
+use std::ptr;
+use std::sync::Arc;
 
 use super::{ffi, XConnection, XError};
 
+use super::context::{ImeContext, ImeContextCreationError};
 use super::inner::{close_im, ImeInner};
 use super::input_method::PotentialInputMethods;
-use super::context::{ImeContextCreationError, ImeContext};
 
 pub unsafe fn xim_set_callback(
     xconn: &Arc<XConnection>,
@@ -17,12 +17,7 @@ pub unsafe fn xim_set_callback(
 ) -> Result<(), XError> {
     // It's advisable to wrap variadic FFI functions in our own functions, as we want to minimize
     // access that isn't type-checked.
-    (xconn.xlib.XSetIMValues)(
-        xim,
-        field,
-        callback,
-        ptr::null_mut::<()>(),
-    );
+    (xconn.xlib.XSetIMValues)(xim, field, callback, ptr::null_mut::<()>());
     xconn.check_errors()
 }
 
@@ -107,18 +102,14 @@ unsafe fn replace_im(inner: *mut ImeInner) -> Result<(), ReplaceImError> {
             let _ = close_im(xconn, new_im.im);
         }
         result
-    }.map_err(ReplaceImError::SetDestroyCallbackFailed)?;
+    }
+    .map_err(ReplaceImError::SetDestroyCallbackFailed)?;
 
     let mut new_contexts = HashMap::new();
     for (window, old_context) in (*inner).contexts.iter() {
         let spot = old_context.as_ref().map(|old_context| old_context.ic_spot);
         let new_context = {
-            let result = ImeContext::new(
-                xconn,
-                new_im.im,
-                *window,
-                spot,
-            );
+            let result = ImeContext::new(xconn, new_im.im, *window, spot);
             if result.is_err() {
                 let _ = close_im(xconn, new_im.im);
             }
@@ -137,7 +128,7 @@ unsafe fn replace_im(inner: *mut ImeInner) -> Result<(), ReplaceImError> {
     Ok(())
 }
 
-pub unsafe extern fn xim_instantiate_callback(
+pub unsafe extern "C" fn xim_instantiate_callback(
     _display: *mut ffi::Display,
     client_data: ffi::XPointer,
     // This field is unsupplied.
@@ -160,7 +151,7 @@ pub unsafe extern fn xim_instantiate_callback(
 // This callback is triggered when the input method is closed on the server end. When this
 // happens, XCloseIM/XDestroyIC doesn't need to be called, as the resources have already been
 // free'd (attempting to do so causes our connection to freeze).
-pub unsafe extern fn xim_destroy_callback(
+pub unsafe extern "C" fn xim_destroy_callback(
     _xim: ffi::XIM,
     client_data: ffi::XPointer,
     // This field is unsupplied.

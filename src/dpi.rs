@@ -1,4 +1,3 @@
-
 //! DPI is important, so read the docs for this module if you don't want to be confused.
 //!
 //! Originally, `winit` dealt entirely in physical pixels (excluding unintentional inconsistencies), but now all
@@ -76,77 +75,6 @@
 //! If you never received any [`HiDpiFactorChanged`](../enum.WindowEvent.html#variant.HiDpiFactorChanged) events,
 //! then your window's DPI factor is 1.
 
-/// Checks that the DPI factor is a normal positive `f64`.
-///
-/// All functions that take a DPI factor assert that this will return `true`. If you're sourcing DPI factors from
-/// anywhere other than winit, it's recommended to validate them using this function before passing them to winit;
-/// otherwise, you risk panics.
-#[inline]
-pub fn validate_hidpi_factor(dpi_factor: f64) -> bool {
-    dpi_factor.is_sign_positive() && dpi_factor.is_normal()
-}
-
-/// A position represented in logical pixels.
-///
-/// The position is stored as floats, so please be careful. Casting floats to integers truncates the fractional part,
-/// which can cause noticable issues. To help with that, an `Into<(i32, i32)>` implementation is provided which
-/// does the rounding for you.
-#[derive(Debug, Copy, Clone, PartialEq)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct LogicalPosition {
-    pub x: f64,
-    pub y: f64,
-}
-
-impl LogicalPosition {
-    #[inline]
-    pub fn new(x: f64, y: f64) -> Self {
-        LogicalPosition { x, y }
-    }
-
-    #[inline]
-    pub fn from_physical<T: Into<PhysicalPosition>>(physical: T, dpi_factor: f64) -> Self {
-        physical.into().to_logical(dpi_factor)
-    }
-
-    #[inline]
-    pub fn to_physical(&self, dpi_factor: f64) -> PhysicalPosition {
-        assert!(validate_hidpi_factor(dpi_factor));
-        let x = self.x * dpi_factor;
-        let y = self.y * dpi_factor;
-        PhysicalPosition::new(x, y)
-    }
-}
-
-impl From<(f64, f64)> for LogicalPosition {
-    #[inline]
-    fn from((x, y): (f64, f64)) -> Self {
-        Self::new(x, y)
-    }
-}
-
-impl From<(i32, i32)> for LogicalPosition {
-    #[inline]
-    fn from((x, y): (i32, i32)) -> Self {
-        Self::new(x as f64, y as f64)
-    }
-}
-
-impl Into<(f64, f64)> for LogicalPosition {
-    #[inline]
-    fn into(self) -> (f64, f64) {
-        (self.x, self.y)
-    }
-}
-
-impl Into<(i32, i32)> for LogicalPosition {
-    /// Note that this rounds instead of truncating.
-    #[inline]
-    fn into(self) -> (i32, i32) {
-        (self.x.round() as _, self.y.round() as _)
-    }
-}
-
 /// A position represented in physical pixels.
 ///
 /// The position is stored as floats, so please be careful. Casting floats to integers truncates the fractional part,
@@ -166,16 +94,25 @@ impl PhysicalPosition {
     }
 
     #[inline]
-    pub fn from_logical<T: Into<LogicalPosition>>(logical: T, dpi_factor: f64) -> Self {
+    pub fn from_logical<T: Into<PhysicalPosition>>(logical: T, dpi_factor: f64) -> Self {
         logical.into().to_physical(dpi_factor)
     }
 
     #[inline]
-    pub fn to_logical(&self, dpi_factor: f64) -> LogicalPosition {
-        assert!(validate_hidpi_factor(dpi_factor));
+    pub fn from_physical<T: Into<PhysicalPosition>>(logical: T, dpi_factor: f64) -> Self {
+        logical.into()
+    }
+
+    #[inline]
+    pub fn to_logical(&self, dpi_factor: f64) -> PhysicalPosition {
         let x = self.x / dpi_factor;
         let y = self.y / dpi_factor;
-        LogicalPosition::new(x, y)
+        PhysicalPosition::new(x, y)
+    }
+
+    #[inline]
+    pub fn to_physical(&self, dpi_factor: f64) -> PhysicalPosition {
+        *self
     }
 }
 
@@ -208,67 +145,6 @@ impl Into<(i32, i32)> for PhysicalPosition {
     }
 }
 
-/// A size represented in logical pixels.
-///
-/// The size is stored as floats, so please be careful. Casting floats to integers truncates the fractional part,
-/// which can cause noticable issues. To help with that, an `Into<(u32, u32)>` implementation is provided which
-/// does the rounding for you.
-#[derive(Debug, Copy, Clone, PartialEq)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct LogicalSize {
-    pub width: f64,
-    pub height: f64,
-}
-
-impl LogicalSize {
-    #[inline]
-    pub fn new(width: f64, height: f64) -> Self {
-        LogicalSize { width, height }
-    }
-
-    #[inline]
-    pub fn from_physical<T: Into<PhysicalSize>>(physical: T, dpi_factor: f64) -> Self {
-        physical.into().to_logical(dpi_factor)
-    }
-
-    #[inline]
-    pub fn to_physical(&self, dpi_factor: f64) -> PhysicalSize {
-        assert!(validate_hidpi_factor(dpi_factor));
-        let width = self.width * dpi_factor;
-        let height = self.height * dpi_factor;
-        PhysicalSize::new(width, height)
-    }
-}
-
-impl From<(f64, f64)> for LogicalSize {
-    #[inline]
-    fn from((width, height): (f64, f64)) -> Self {
-        Self::new(width, height)
-    }
-}
-
-impl From<(u32, u32)> for LogicalSize {
-    #[inline]
-    fn from((width, height): (u32, u32)) -> Self {
-        Self::new(width as f64, height as f64)
-    }
-}
-
-impl Into<(f64, f64)> for LogicalSize {
-    #[inline]
-    fn into(self) -> (f64, f64) {
-        (self.width, self.height)
-    }
-}
-
-impl Into<(u32, u32)> for LogicalSize {
-    /// Note that this rounds instead of truncating.
-    #[inline]
-    fn into(self) -> (u32, u32) {
-        (self.width.round() as _, self.height.round() as _)
-    }
-}
-
 /// A size represented in physical pixels.
 ///
 /// The size is stored as floats, so please be careful. Casting floats to integers truncates the fractional part,
@@ -288,16 +164,25 @@ impl PhysicalSize {
     }
 
     #[inline]
-    pub fn from_logical<T: Into<LogicalSize>>(logical: T, dpi_factor: f64) -> Self {
+    pub fn from_logical<T: Into<PhysicalSize>>(logical: T, dpi_factor: f64) -> Self {
         logical.into().to_physical(dpi_factor)
     }
 
     #[inline]
-    pub fn to_logical(&self, dpi_factor: f64) -> LogicalSize {
-        assert!(validate_hidpi_factor(dpi_factor));
+    pub fn to_logical(&self, dpi_factor: f64) -> PhysicalSize {
         let width = self.width / dpi_factor;
         let height = self.height / dpi_factor;
-        LogicalSize::new(width, height)
+        PhysicalSize::new(width, height)
+    }
+
+    #[inline]
+    pub fn from_physical<T: Into<PhysicalSize>>(logical: T, dpi_factor: f64) -> Self {
+        logical.into()
+    }
+
+    #[inline]
+    pub fn to_physical(&self, dpi_factor: f64) -> PhysicalSize {
+        *self
     }
 }
 

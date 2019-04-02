@@ -3,10 +3,10 @@ use winapi::shared::windef::{HDC, HMONITOR, HWND, LPRECT, POINT};
 use winapi::um::winnt::LONG;
 use winapi::um::winuser;
 
-use std::{mem, ptr};
 use std::collections::VecDeque;
+use std::{mem, ptr};
 
-use super::{EventsLoop, util};
+use super::{util, EventsLoop};
 use dpi::{PhysicalPosition, PhysicalSize};
 use platform::platform::dpi::{dpi_to_scale_factor, get_monitor_dpi};
 use platform::platform::window::Window;
@@ -65,9 +65,7 @@ pub fn get_available_monitors() -> VecDeque<MonitorId> {
 
 pub fn get_primary_monitor() -> MonitorId {
     const ORIGIN: POINT = POINT { x: 0, y: 0 };
-    let hmonitor = unsafe {
-        winuser::MonitorFromPoint(ORIGIN, winuser::MONITOR_DEFAULTTOPRIMARY)
-    };
+    let hmonitor = unsafe { winuser::MonitorFromPoint(ORIGIN, winuser::MONITOR_DEFAULTTOPRIMARY) };
     MonitorId::from_hmonitor(hmonitor)
 }
 
@@ -78,9 +76,8 @@ impl EventsLoop {
     }
 
     pub fn get_current_monitor(hwnd: HWND) -> MonitorId {
-        let hmonitor = unsafe {
-            winuser::MonitorFromWindow(hwnd, winuser::MONITOR_DEFAULTTONEAREST)
-        };
+        let hmonitor =
+            unsafe { winuser::MonitorFromWindow(hwnd, winuser::MONITOR_DEFAULTTONEAREST) };
         MonitorId::from_hmonitor(hmonitor)
     }
 
@@ -99,7 +96,9 @@ impl Window {
     }
 }
 
-pub(crate) fn get_monitor_info(hmonitor: HMONITOR) -> Result<winuser::MONITORINFOEXW, util::WinError> {
+pub(crate) fn get_monitor_info(
+    hmonitor: HMONITOR,
+) -> Result<winuser::MONITORINFOEXW, util::WinError> {
     let mut monitor_info: winuser::MONITORINFOEXW = unsafe { mem::uninitialized() };
     monitor_info.cbSize = mem::size_of::<winuser::MONITORINFOEXW>() as DWORD;
     let status = unsafe {

@@ -1,19 +1,17 @@
-use std::{char, ptr};
 use std::os::raw::c_int;
 use std::sync::atomic::{AtomicBool, AtomicPtr, Ordering};
+use std::{char, ptr};
 
-use events::VirtualKeyCode;
 use events::ModifiersState;
+use events::VirtualKeyCode;
 
-use winapi::shared::minwindef::{WPARAM, LPARAM, UINT, HKL, HKL__};
+use winapi::shared::minwindef::{HKL, HKL__, LPARAM, UINT, WPARAM};
 use winapi::um::winuser;
 
 use ScanCode;
 
 fn key_pressed(vkey: c_int) -> bool {
-    unsafe {
-        (winuser::GetKeyState(vkey) & (1 << 15)) == (1 << 15)
-    }
+    unsafe { (winuser::GetKeyState(vkey) & (1 << 15)) == (1 << 15) }
 }
 
 pub fn get_key_mods() -> ModifiersState {
@@ -29,9 +27,19 @@ pub fn get_key_mods() -> ModifiersState {
 
 unsafe fn get_char(keyboard_state: &[u8; 256], v_key: u32, hkl: HKL) -> Option<char> {
     let mut unicode_bytes = [0u16; 5];
-    let len = winuser::ToUnicodeEx(v_key, 0, keyboard_state.as_ptr(), unicode_bytes.as_mut_ptr(), unicode_bytes.len() as _, 0, hkl);
+    let len = winuser::ToUnicodeEx(
+        v_key,
+        0,
+        keyboard_state.as_ptr(),
+        unicode_bytes.as_mut_ptr(),
+        unicode_bytes.len() as _,
+        0,
+        hkl,
+    );
     if len >= 1 {
-        char::decode_utf16(unicode_bytes.into_iter().cloned()).next().and_then(|c| c.ok())
+        char::decode_utf16(unicode_bytes.into_iter().cloned())
+            .next()
+            .and_then(|c| c.ok())
     } else {
         None
     }
@@ -255,27 +263,34 @@ pub fn vkey_to_winit_vkey(vkey: c_int) -> Option<VirtualKeyCode> {
         winuser::VK_NONAME => Some(VirtualKeyCode::Noname),
         winuser::VK_PA1 => Some(VirtualKeyCode::Pa1),
         winuser::VK_OEM_CLEAR => Some(VirtualKeyCode::Oem_clear),*/
-        _ => None
+        _ => None,
     }
 }
 
-pub fn handle_extended_keys(vkey: c_int, mut scancode: UINT, extended: bool) -> Option<(c_int, UINT)> {
+pub fn handle_extended_keys(
+    vkey: c_int,
+    mut scancode: UINT,
+    extended: bool,
+) -> Option<(c_int, UINT)> {
     // Welcome to hell https://blog.molecular-matters.com/2011/09/05/properly-handling-keyboard-input/
     let vkey = match vkey {
-        winuser::VK_SHIFT => unsafe { winuser::MapVirtualKeyA(
-            scancode,
-            winuser::MAPVK_VSC_TO_VK_EX,
-        ) as _ },
-        winuser::VK_CONTROL => if extended {
-            winuser::VK_RCONTROL
-        } else {
-            winuser::VK_LCONTROL
+        winuser::VK_SHIFT => unsafe {
+            winuser::MapVirtualKeyA(scancode, winuser::MAPVK_VSC_TO_VK_EX) as _
         },
-        winuser::VK_MENU => if extended {
-            winuser::VK_RMENU
-        } else {
-            winuser::VK_LMENU
-        },
+        winuser::VK_CONTROL => {
+            if extended {
+                winuser::VK_RCONTROL
+            } else {
+                winuser::VK_LCONTROL
+            }
+        }
+        winuser::VK_MENU => {
+            if extended {
+                winuser::VK_RMENU
+            } else {
+                winuser::VK_LMENU
+            }
+        }
         _ => match scancode {
             // This is only triggered when using raw input. Without this check, we get two events whenever VK_PAUSE is
             // pressed, the first one having scancode 0x1D but vkey VK_PAUSE...
@@ -290,14 +305,17 @@ pub fn handle_extended_keys(vkey: c_int, mut scancode: UINT, extended: bool) -> 
                 } else {
                     winuser::VK_SCROLL
                 }
-            },
+            }
             _ => vkey,
         },
     };
     Some((vkey, scancode))
 }
 
-pub fn process_key_params(wparam: WPARAM, lparam: LPARAM) -> Option<(ScanCode, Option<VirtualKeyCode>)> {
+pub fn process_key_params(
+    wparam: WPARAM,
+    lparam: LPARAM,
+) -> Option<(ScanCode, Option<VirtualKeyCode>)> {
     let scancode = ((lparam >> 16) & 0xff) as UINT;
     let extended = (lparam & 0x01000000) != 0;
     handle_extended_keys(wparam as _, scancode, extended)
@@ -307,7 +325,9 @@ pub fn process_key_params(wparam: WPARAM, lparam: LPARAM) -> Option<(ScanCode, O
 // This is needed as windows doesn't properly distinguish
 // some virtual key codes for different keyboard layouts
 fn map_text_keys(win_virtual_key: i32) -> Option<VirtualKeyCode> {
-    let char_key = unsafe { winuser::MapVirtualKeyA(win_virtual_key as u32, winuser::MAPVK_VK_TO_CHAR) } & 0x7FFF;
+    let char_key =
+        unsafe { winuser::MapVirtualKeyA(win_virtual_key as u32, winuser::MAPVK_VK_TO_CHAR) }
+            & 0x7FFF;
     match char::from_u32(char_key) {
         Some(';') => Some(VirtualKeyCode::Semicolon),
         Some('/') => Some(VirtualKeyCode::Slash),
@@ -316,6 +336,6 @@ fn map_text_keys(win_virtual_key: i32) -> Option<VirtualKeyCode> {
         Some(']') => Some(VirtualKeyCode::RBracket),
         Some('\'') => Some(VirtualKeyCode::Apostrophe),
         Some('\\') => Some(VirtualKeyCode::Backslash),
-        _ => None
+        _ => None,
     }
 }

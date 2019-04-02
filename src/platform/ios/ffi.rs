@@ -43,7 +43,7 @@ pub struct CGSize {
 #[link(name = "UIKit", kind = "framework")]
 #[link(name = "CoreFoundation", kind = "framework")]
 #[link(name = "GlKit", kind = "framework")]
-extern {
+extern "C" {
     pub static kCFRunLoopDefaultMode: CFStringRef;
 
     // int UIApplicationMain ( int argc, char *argv[], NSString *principalClassName, NSString *delegateClassName );
@@ -62,7 +62,7 @@ extern {
     ) -> i32;
 }
 
-extern {
+extern "C" {
     pub fn setjmp(env: *mut c_void) -> c_int;
     pub fn longjmp(env: *mut c_void, val: c_int) -> !;
 }
@@ -92,11 +92,11 @@ pub trait NSString: Sized {
 
 impl NSString for id {
     unsafe fn initWithUTF8String_(self, c_string: *const c_char) -> id {
-        msg_send![self, initWithUTF8String:c_string as id]
+        msg_send![self, initWithUTF8String: c_string as id]
     }
 
     unsafe fn stringByAppendingString_(self, other: id) -> id {
-        msg_send![self, stringByAppendingString:other]
+        msg_send![self, stringByAppendingString: other]
     }
 
     unsafe fn init_str(self, string: &str) -> id {

@@ -21,11 +21,9 @@ impl XConnection {
         if let Some(atom) = cached_atom {
             atom
         } else {
-            let atom = unsafe { (self.xlib.XInternAtom)(
-                self.display,
-                name.as_ptr() as *const c_char,
-                ffi::False,
-            ) };
+            let atom = unsafe {
+                (self.xlib.XInternAtom)(self.display, name.as_ptr() as *const c_char, ffi::False)
+            };
             if atom == 0 {
                 let msg = format!(
                     "`XInternAtom` failed, which really shouldn't happen. Atom: {:?}, Error: {:#?}",
@@ -52,7 +50,7 @@ impl XConnection {
 
     // Note: this doesn't use caching, for the sake of simplicity.
     // If you're dealing with this many atoms, you'll usually want to cache them locally anyway.
-    pub unsafe fn get_atoms(&self,  names: &[*mut c_char]) -> Result<Vec<ffi::Atom>, XError> {
+    pub unsafe fn get_atoms(&self, names: &[*mut c_char]) -> Result<Vec<ffi::Atom>, XError> {
         let mut atoms = Vec::with_capacity(names.len());
         (self.xlib.XInternAtoms)(
             self.display,

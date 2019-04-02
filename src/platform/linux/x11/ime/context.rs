@@ -1,6 +1,6 @@
+use std::os::raw::{c_short, c_void};
 use std::ptr;
 use std::sync::Arc;
-use std::os::raw::{c_short, c_void};
 
 use super::{ffi, util, XConnection, XError};
 
@@ -22,7 +22,8 @@ unsafe fn create_pre_edit_attr<'a>(
             ic_spot,
             ptr::null_mut::<()>(),
         ),
-    ).expect("XVaCreateNestedList returned NULL")
+    )
+    .expect("XVaCreateNestedList returned NULL")
 }
 
 // WARNING: this struct doesn't destroy its XIC resource when dropped.
@@ -49,7 +50,9 @@ impl ImeContext {
         };
 
         let ic = ic.ok_or(ImeContextCreationError::Null)?;
-        xconn.check_errors().map_err(ImeContextCreationError::XError)?;
+        xconn
+            .check_errors()
+            .map_err(ImeContextCreationError::XError)?;
 
         Ok(ImeContext {
             ic,

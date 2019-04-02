@@ -1,52 +1,44 @@
 #![cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"))]
 
-pub mod ffi;
+mod dnd;
 mod events;
+pub mod ffi;
+mod ime;
 mod monitor;
+pub mod util;
 mod window;
 mod xdisplay;
-mod dnd;
-mod ime;
-pub mod util;
 
 pub use self::monitor::MonitorId;
 pub use self::window::UnownedWindow;
-pub use self::xdisplay::{XConnection, XNotSupported, XError};
+pub use self::xdisplay::{XConnection, XError, XNotSupported};
 
-use std::{mem, ptr, slice};
+#[cfg(any(target_os = "netbsd", target_os = "openbsd"))]
+use libc::__errno as __errno_location;
+#[cfg(target_os = "linux")]
+use libc::__errno_location;
+#[cfg(target_os = "freebsd")]
+use libc::__error as __errno_location;
+use libc::{fd_set, select, EBADF, EINTR, EINVAL, ENOMEM, FD_ISSET, FD_SET, FD_ZERO};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::ffi::CStr;
 use std::ops::Deref;
 use std::os::raw::*;
-use libc::{select, fd_set, FD_SET, FD_ZERO, FD_ISSET, EINTR, EINVAL, ENOMEM, EBADF};
-#[cfg(target_os = "linux")]
-use libc::__errno_location;
-#[cfg(target_os = "freebsd")]
-use libc::__error as __errno_location;
-#[cfg(any(target_os = "netbsd", target_os = "openbsd"))]
-use libc::__errno as __errno_location;
-use std::sync::{Arc, mpsc, Weak};
 use std::sync::atomic::{self, AtomicBool};
+use std::sync::{mpsc, Arc, Weak};
+use std::{mem, ptr, slice};
 
 use libc::{self, setlocale, LC_CTYPE};
 
-use {
-    ControlFlow,
-    CreationError,
-    DeviceEvent,
-    Event,
-    EventsLoopClosed,
-    KeyboardInput,
-    LogicalPosition,
-    LogicalSize,
-    WindowAttributes,
-    WindowEvent,
-};
+use self::dnd::{Dnd, DndState};
+use self::ime::{Ime, ImeCreationError, ImeReceiver, ImeSender};
 use events::ModifiersState;
 use platform::PlatformSpecificWindowBuilderAttributes;
-use self::dnd::{Dnd, DndState};
-use self::ime::{ImeReceiver, ImeSender, ImeCreationError, Ime};
+use {
+    ControlFlow, CreationError, DeviceEvent, Event, EventsLoopClosed, KeyboardInput,
+    PhysicalPosition, PhysicalSize, WindowAttributes, WindowEvent,
+};
 
 pub struct EventsLoop {
     xconn: Arc<XConnection>,
@@ -85,7 +77,9 @@ impl EventsLoop {
         let (ime_sender, ime_receiver) = mpsc::channel();
         // Input methods will open successfully without setting the locale, but it won't be
         // possible to actually commit pre-edit sequences.
-        unsafe { setlocale(LC_CTYPE, b"\0".as_ptr() as *const _); }
+        unsafe {
+            setlocale(LC_CTYPE, b"\0".as_ptr() as *const _);
+        }
         let ime = RefCell::new({
             let result = Ime::new(Arc::clone(&xconn));
             if let Err(ImeCreationError::OpenFailure(ref state)) = result {
@@ -94,7 +88,8 @@ impl EventsLoop {
             result.expect("Failed to set input method destruction callback")
         });
 
-        let randr_event_offset = xconn.select_xrandr_input(root)
+        let randr_event_offset = xconn
+            .select_xrandr_input(root)
             .expect("Failed to query XRandR extension");
 
         let xi2ext = unsafe {
@@ -108,7 +103,8 @@ impl EventsLoop {
                 b"XInputExtension\0".as_ptr() as *const c_char,
                 &mut result.opcode as *mut c_int,
                 &mut result.first_event_id as *mut c_int,
-                &mut result.first_error_id as *mut c_int);
+                &mut result.first_error_id as *mut c_int,
+            );
             if res == ffi::False {
                 panic!("X server missing XInput extension");
             }
@@ -122,11 +118,11 @@ impl EventsLoop {
                 xconn.display,
                 &mut xinput_major_ver,
                 &mut xinput_minor_ver,
-            ) != ffi::Success as libc::c_int {
+            ) != ffi::Success as libc::c_int
+            {
                 panic!(
                     "X server has XInput extension {}.{} but does not support XInput2",
-                    xinput_major_ver,
-                    xinput_minor_ver,
+                    xinput_major_ver, xinput_minor_ver,
                 );
             }
         }
@@ -167,11 +163,10 @@ impl EventsLoop {
 
         // Register for device hotplug events
         // (The request buffer is flushed during `init_device`)
-        result.xconn.select_xinput_events(
-            root,
-            ffi::XIAllDevices,
-            ffi::XI_HierarchyChangedMask,
-        ).queue();
+        result
+            .xconn
+            .select_xinput_events(root, ffi::XIAllDevices, ffi::XI_HierarchyChangedMask)
+            .queue();
 
         result.init_device(ffi::XIAllDevices);
 
@@ -192,7 +187,7 @@ impl EventsLoop {
         }
     }
 
-    unsafe fn poll_one_event(&mut self, event_ptr : *mut ffi::XEvent) -> bool {
+    unsafe fn poll_one_event(&mut self, event_ptr: *mut ffi::XEvent) -> bool {
         // This function is used to poll and remove a single event
         // from the Xlib event queue in a non-blocking, atomic way.
         // XCheckIfEvent is non-blocking and removes events from queue.
@@ -202,7 +197,8 @@ impl EventsLoop {
         unsafe extern "C" fn predicate(
             _display: *mut ffi::Display,
             _event: *mut ffi::XEvent,
-            _arg : *mut c_char)  -> c_int {
+            _arg: *mut c_char,
+        ) -> c_int {
             // This predicate always returns "true" (1) to accept all events
             1
         }
@@ -211,7 +207,8 @@ impl EventsLoop {
             self.xconn.display,
             event_ptr,
             Some(predicate),
-            std::ptr::null_mut());
+            std::ptr::null_mut(),
+        );
 
         result != 0
     }
@@ -227,15 +224,16 @@ impl EventsLoop {
             (self.xconn.xlib.XFlush)(self.xconn.display);
 
             // Then use select(2) to wait for input data
-            let mut fds : fd_set = mem::uninitialized();
+            let mut fds: fd_set = mem::uninitialized();
             FD_ZERO(&mut fds);
             FD_SET(self.xconn.x11_fd, &mut fds);
             let err = select(
                 self.xconn.x11_fd + 1,
-                &mut fds, // read fds
+                &mut fds,             // read fds
                 std::ptr::null_mut(), // write fds
                 std::ptr::null_mut(), // except fds (could be used to detect errors)
-                std::ptr::null_mut()); // timeout
+                std::ptr::null_mut(),
+            ); // timeout
 
             if err < 0 {
                 let errno_ptr = __errno_location();
@@ -257,7 +255,8 @@ impl EventsLoop {
     }
 
     pub fn poll_events<F>(&mut self, mut callback: F)
-        where F: FnMut(Event)
+    where
+        F: FnMut(Event),
     {
         let mut xev = unsafe { mem::uninitialized() };
         loop {
@@ -272,7 +271,8 @@ impl EventsLoop {
     }
 
     pub fn run_forever<F>(&mut self, mut callback: F)
-        where F: FnMut(Event) -> ControlFlow
+    where
+        F: FnMut(Event) -> ControlFlow,
     {
         let mut xev = unsafe { mem::uninitialized() };
 
@@ -304,24 +304,33 @@ impl EventsLoop {
     }
 
     fn process_event<F>(&mut self, xev: &mut ffi::XEvent, mut callback: F)
-        where F: FnMut(Event)
+    where
+        F: FnMut(Event),
     {
         // XFilterEvent tells us when an event has been discarded by the input method.
         // Specifically, this involves all of the KeyPress events in compose/pre-edit sequences,
         // along with an extra copy of the KeyRelease events. This also prevents backspace and
         // arrow keys from being detected twice.
-        if ffi::True == unsafe { (self.xconn.xlib.XFilterEvent)(
-            xev,
-            { let xev: &ffi::XAnyEvent = xev.as_ref(); xev.window }
-        ) } {
+        if ffi::True
+            == unsafe {
+                (self.xconn.xlib.XFilterEvent)(xev, {
+                    let xev: &ffi::XAnyEvent = xev.as_ref();
+                    xev.window
+                })
+            }
+        {
             return;
         }
 
         let event_type = xev.get_type();
         match event_type {
             ffi::MappingNotify => {
-                unsafe { (self.xconn.xlib.XRefreshKeyboardMapping)(xev.as_mut()); }
-                self.xconn.check_errors().expect("Failed to call XRefreshKeyboardMapping");
+                unsafe {
+                    (self.xconn.xlib.XRefreshKeyboardMapping)(xev.as_mut());
+                }
+                self.xconn
+                    .check_errors()
+                    .expect("Failed to call XRefreshKeyboardMapping");
             }
 
             ffi::ClientMessage => {
@@ -331,7 +340,10 @@ impl EventsLoop {
                 let window_id = mkwid(window);
 
                 if client_msg.data.get_long(0) as ffi::Atom == self.wm_delete_window {
-                    callback(Event::WindowEvent { window_id, event: WindowEvent::CloseRequested });
+                    callback(Event::WindowEvent {
+                        window_id,
+                        event: WindowEvent::CloseRequested,
+                    });
                 } else if client_msg.message_type == self.dnd.atoms.enter {
                     let source_window = client_msg.data.get_long(0) as c_ulong;
                     let flags = client_msg.data.get_long(1);
@@ -342,10 +354,11 @@ impl EventsLoop {
                         let type_list = vec![
                             client_msg.data.get_long(2) as c_ulong,
                             client_msg.data.get_long(3) as c_ulong,
-                            client_msg.data.get_long(4) as c_ulong
+                            client_msg.data.get_long(4) as c_ulong,
                         ];
                         self.dnd.type_list = Some(type_list);
-                    } else if let Ok(more_types) = unsafe { self.dnd.get_type_list(source_window) } {
+                    } else if let Ok(more_types) = unsafe { self.dnd.get_type_list(source_window) }
+                    {
                         self.dnd.type_list = Some(more_types);
                     }
                 } else if client_msg.message_type == self.dnd.atoms.position {
@@ -393,18 +406,21 @@ impl EventsLoop {
                                 // This results in the `SelectionNotify` event below
                                 self.dnd.convert_selection(window, time);
                             }
-                            self.dnd.send_status(window, source_window, DndState::Accepted)
+                            self.dnd
+                                .send_status(window, source_window, DndState::Accepted)
                                 .expect("Failed to send `XdndStatus` message.");
                         }
                     } else {
                         unsafe {
-                            self.dnd.send_status(window, source_window, DndState::Rejected)
+                            self.dnd
+                                .send_status(window, source_window, DndState::Rejected)
                                 .expect("Failed to send `XdndStatus` message.");
                         }
                         self.dnd.reset();
                     }
                 } else if client_msg.message_type == self.dnd.atoms.drop {
-                    let (source_window, state) = if let Some(source_window) = self.dnd.source_window {
+                    let (source_window, state) = if let Some(source_window) = self.dnd.source_window
+                    {
                         if let Some(Ok(ref path_list)) = self.dnd.result {
                             for path in path_list {
                                 callback(Event::WindowEvent {
@@ -421,7 +437,8 @@ impl EventsLoop {
                         (source_window, DndState::Rejected)
                     };
                     unsafe {
-                        self.dnd.send_finished(window, source_window, state)
+                        self.dnd
+                            .send_finished(window, source_window, state)
                             .expect("Failed to send `XdndFinished` message.");
                     }
                     self.dnd.reset();
@@ -492,15 +509,22 @@ impl EventsLoop {
                     let mut shared_state_lock = window.shared_state.lock();
 
                     let (mut resized, moved) = {
-                        let resized = util::maybe_change(&mut shared_state_lock.size, new_inner_size);
+                        let resized =
+                            util::maybe_change(&mut shared_state_lock.size, new_inner_size);
                         let moved = if is_synthetic {
-                            util::maybe_change(&mut shared_state_lock.inner_position, new_inner_position)
+                            util::maybe_change(
+                                &mut shared_state_lock.inner_position,
+                                new_inner_position,
+                            )
                         } else {
                             // Detect when frame extents change.
                             // Since this isn't synthetic, as per the notes above, this position is relative to the
                             // parent window.
                             let rel_parent = new_inner_position;
-                            if util::maybe_change(&mut shared_state_lock.inner_position_rel_parent, rel_parent) {
+                            if util::maybe_change(
+                                &mut shared_state_lock.inner_position_rel_parent,
+                                rel_parent,
+                            ) {
                                 // This ensures we process the next `Moved`.
                                 shared_state_lock.inner_position = None;
                                 // Extra insurance against stale frame extents.
@@ -515,18 +539,22 @@ impl EventsLoop {
 
                     let new_outer_position = if moved || shared_state_lock.position.is_none() {
                         // We need to convert client area position to window position.
-                        let frame_extents = shared_state_lock.frame_extents
+                        let frame_extents = shared_state_lock
+                            .frame_extents
                             .as_ref()
                             .cloned()
                             .unwrap_or_else(|| {
-                                let frame_extents = self.xconn.get_frame_extents_heuristic(xwindow, self.root);
+                                let frame_extents =
+                                    self.xconn.get_frame_extents_heuristic(xwindow, self.root);
                                 shared_state_lock.frame_extents = Some(frame_extents.clone());
                                 frame_extents
                             });
-                        let outer = frame_extents.inner_pos_to_outer(new_inner_position.0, new_inner_position.1);
+                        let outer = frame_extents
+                            .inner_pos_to_outer(new_inner_position.0, new_inner_position.1);
                         shared_state_lock.position = Some(outer);
                         if moved {
-                            let logical_position = LogicalPosition::from_physical(outer, monitor.hidpi_factor);
+                            let logical_position =
+                                PhysicalPosition::from_physical(outer, monitor.hidpi_factor);
                             events.moved = Some(WindowEvent::Moved(logical_position));
                         }
                         outer
@@ -537,12 +565,13 @@ impl EventsLoop {
                     if is_synthetic {
                         // If we don't use the existing adjusted value when available, then the user can screw up the
                         // resizing by dragging across monitors *without* dropping the window.
-                        let (width, height) = shared_state_lock.dpi_adjusted
+                        let (width, height) = shared_state_lock
+                            .dpi_adjusted
                             .unwrap_or_else(|| (xev.width as f64, xev.height as f64));
-                        let last_hidpi_factor = shared_state_lock.guessed_dpi
-                            .take()
-                            .unwrap_or_else(|| {
-                                shared_state_lock.last_monitor
+                        let last_hidpi_factor =
+                            shared_state_lock.guessed_dpi.take().unwrap_or_else(|| {
+                                shared_state_lock
+                                    .last_monitor
                                     .as_ref()
                                     .map(|last_monitor| last_monitor.hidpi_factor)
                                     .unwrap_or(1.0)
@@ -555,7 +584,8 @@ impl EventsLoop {
                             new_hidpi_factor
                         };
                         if last_hidpi_factor != new_hidpi_factor {
-                            events.dpi_changed = Some(WindowEvent::HiDpiFactorChanged(new_hidpi_factor));
+                            events.dpi_changed =
+                                Some(WindowEvent::HiDpiFactorChanged(new_hidpi_factor));
                             let (new_width, new_height, flusher) = window.adjust_for_dpi(
                                 last_hidpi_factor,
                                 new_hidpi_factor,
@@ -575,7 +605,10 @@ impl EventsLoop {
                     // WMs constrain the window size, making the resize fail. This would cause an endless stream of
                     // XResizeWindow requests, making Xorg, the winit client, and the WM consume 100% of CPU.
                     if let Some(adjusted_size) = shared_state_lock.dpi_adjusted {
-                        let rounded_size = (adjusted_size.0.round() as u32, adjusted_size.1.round() as u32);
+                        let rounded_size = (
+                            adjusted_size.0.round() as u32,
+                            adjusted_size.1.round() as u32,
+                        );
                         if new_inner_size == rounded_size || !util::wm_name_is_one_of(&["Xfwm4"]) {
                             // When this finally happens, the event will not be synthetic.
                             shared_state_lock.dpi_adjusted = None;
@@ -592,7 +625,8 @@ impl EventsLoop {
                     }
 
                     if resized {
-                        let logical_size = LogicalSize::from_physical(new_inner_size, monitor.hidpi_factor);
+                        let logical_size =
+                            PhysicalSize::from_physical(new_inner_size, monitor.hidpi_factor);
                         events.resized = Some(WindowEvent::Resized(logical_size));
                     }
 
@@ -645,7 +679,10 @@ impl EventsLoop {
                     .remove_context(window)
                     .expect("Failed to destroy input context");
 
-                callback(Event::WindowEvent { window_id, event: WindowEvent::Destroyed });
+                callback(Event::WindowEvent {
+                    window_id,
+                    event: WindowEvent::Destroyed,
+                });
             }
 
             ffi::Expose => {
@@ -654,7 +691,10 @@ impl EventsLoop {
                 let window = xev.window;
                 let window_id = mkwid(window);
 
-                callback(Event::WindowEvent { window_id, event: WindowEvent::Refresh });
+                callback(Event::WindowEvent {
+                    window_id,
+                    event: WindowEvent::Refresh,
+                });
             }
 
             ffi::KeyPress | ffi::KeyRelease => {
@@ -711,7 +751,7 @@ impl EventsLoop {
                                 virtual_keycode,
                                 modifiers,
                             },
-                        }
+                        },
                     });
                 }
 
@@ -733,16 +773,23 @@ impl EventsLoop {
             }
 
             ffi::GenericEvent => {
-                let guard = if let Some(e) = GenericEventCookie::from_event(&self.xconn, *xev) { e } else { return };
+                let guard = if let Some(e) = GenericEventCookie::from_event(&self.xconn, *xev) {
+                    e
+                } else {
+                    return;
+                };
                 let xev = &guard.cookie;
                 if self.xi2ext.opcode != xev.extension {
                     return;
                 }
 
-                use events::WindowEvent::{Focused, CursorEntered, MouseInput, CursorLeft, CursorMoved, MouseWheel, AxisMotion};
                 use events::ElementState::{Pressed, Released};
-                use events::MouseButton::{Left, Right, Middle, Other};
+                use events::MouseButton::{Left, Middle, Other, Right};
                 use events::MouseScrollDelta::LineDelta;
+                use events::WindowEvent::{
+                    AxisMotion, CursorEntered, CursorLeft, CursorMoved, Focused, MouseInput,
+                    MouseWheel,
+                };
                 use events::{Touch, TouchPhase};
 
                 match xev.evtype {
@@ -755,7 +802,9 @@ impl EventsLoop {
                             let return_now = self
                                 .with_window(xev.event, |window| window.multitouch)
                                 .unwrap_or(true);
-                            if return_now { return; }
+                            if return_now {
+                                return;
+                            }
                         }
 
                         let modifiers = ModifiersState::from(xev.mods);
@@ -797,23 +846,25 @@ impl EventsLoop {
                             // Suppress emulated scroll wheel clicks, since we handle the real motion events for those.
                             // In practice, even clicky scroll wheels appear to be reported by evdev (and XInput2 in
                             // turn) as axis motion, so we don't otherwise special-case these button presses.
-                            4 | 5 | 6 | 7 => if xev.flags & ffi::XIPointerEmulated == 0 {
-                                callback(Event::WindowEvent {
-                                    window_id,
-                                    event: MouseWheel {
-                                        device_id,
-                                        delta: match xev.detail {
-                                            4 => LineDelta(0.0, 1.0),
-                                            5 => LineDelta(0.0, -1.0),
-                                            6 => LineDelta(-1.0, 0.0),
-                                            7 => LineDelta(1.0, 0.0),
-                                            _ => unreachable!(),
+                            4 | 5 | 6 | 7 => {
+                                if xev.flags & ffi::XIPointerEmulated == 0 {
+                                    callback(Event::WindowEvent {
+                                        window_id,
+                                        event: MouseWheel {
+                                            device_id,
+                                            delta: match xev.detail {
+                                                4 => LineDelta(0.0, 1.0),
+                                                5 => LineDelta(0.0, -1.0),
+                                                6 => LineDelta(-1.0, 0.0),
+                                                7 => LineDelta(1.0, 0.0),
+                                                _ => unreachable!(),
+                                            },
+                                            phase: TouchPhase::Moved,
+                                            modifiers,
                                         },
-                                        phase: TouchPhase::Moved,
-                                        modifiers,
-                                    },
-                                });
-                            },
+                                    });
+                                }
+                            }
 
                             x => callback(Event::WindowEvent {
                                 window_id,
@@ -839,11 +890,10 @@ impl EventsLoop {
                             util::maybe_change(&mut shared_state_lock.cursor_pos, new_cursor_pos)
                         });
                         if cursor_moved == Some(true) {
-                            let dpi_factor = self.with_window(xev.event, |window| {
-                                window.get_hidpi_factor()
-                            });
+                            let dpi_factor =
+                                self.with_window(xev.event, |window| window.get_hidpi_factor());
                             if let Some(dpi_factor) = dpi_factor {
-                                let position = LogicalPosition::from_physical(
+                                let position = PhysicalPosition::from_physical(
                                     (xev.event_x as f64, xev.event_y as f64),
                                     dpi_factor,
                                 );
@@ -865,7 +915,12 @@ impl EventsLoop {
                         // More gymnastics, for self.devices
                         let mut events = Vec::new();
                         {
-                            let mask = unsafe { slice::from_raw_parts(xev.valuators.mask, xev.valuators.mask_len as usize) };
+                            let mask = unsafe {
+                                slice::from_raw_parts(
+                                    xev.valuators.mask,
+                                    xev.valuators.mask_len as usize,
+                                )
+                            };
                             let mut devices = self.devices.borrow_mut();
                             let physical_device = match devices.get_mut(&DeviceId(xev.sourceid)) {
                                 Some(device) => device,
@@ -873,10 +928,14 @@ impl EventsLoop {
                             };
 
                             let mut value = xev.valuators.values;
-                            for i in 0..xev.valuators.mask_len*8 {
+                            for i in 0..xev.valuators.mask_len * 8 {
                                 if ffi::XIMaskIsSet(mask, i) {
                                     let x = unsafe { *value };
-                                    if let Some(&mut (_, ref mut info)) = physical_device.scroll_axes.iter_mut().find(|&&mut (axis, _)| axis == i) {
+                                    if let Some(&mut (_, ref mut info)) = physical_device
+                                        .scroll_axes
+                                        .iter_mut()
+                                        .find(|&&mut (axis, _)| axis == i)
+                                    {
                                         let delta = (x - info.position) / info.increment;
                                         info.position = x;
                                         events.push(Event::WindowEvent {
@@ -884,9 +943,13 @@ impl EventsLoop {
                                             event: MouseWheel {
                                                 device_id,
                                                 delta: match info.orientation {
-                                                    ScrollOrientation::Horizontal => LineDelta(delta as f32, 0.0),
+                                                    ScrollOrientation::Horizontal => {
+                                                        LineDelta(delta as f32, 0.0)
+                                                    }
                                                     // X11 vertical scroll coordinates are opposite to winit's
-                                                    ScrollOrientation::Vertical => LineDelta(0.0, -delta as f32),
+                                                    ScrollOrientation::Vertical => {
+                                                        LineDelta(0.0, -delta as f32)
+                                                    }
                                                 },
                                                 phase: TouchPhase::Moved,
                                                 modifiers,
@@ -925,7 +988,8 @@ impl EventsLoop {
                                 // presumably some other WMs. On those, `XI_Enter` doesn't include
                                 // the physical device ID, so both `sourceid` and `deviceid` are
                                 // the virtual device.
-                                || device_info.attachment == xev.sourceid {
+                                || device_info.attachment == xev.sourceid
+                                {
                                     let device_id = DeviceId(device_info.deviceid);
                                     if let Some(device) = devices.get_mut(&device_id) {
                                         device.reset_scroll_position(device_info);
@@ -938,10 +1002,10 @@ impl EventsLoop {
                             event: CursorEntered { device_id },
                         });
 
-                        if let Some(dpi_factor) = self.with_window(xev.event, |window| {
-                            window.get_hidpi_factor()
-                        }) {
-                            let position = LogicalPosition::from_physical(
+                        if let Some(dpi_factor) =
+                            self.with_window(xev.event, |window| window.get_hidpi_factor())
+                        {
+                            let position = PhysicalPosition::from_physical(
                                 (xev.event_x as f64, xev.event_y as f64),
                                 dpi_factor,
                             );
@@ -953,7 +1017,8 @@ impl EventsLoop {
                             // This needs to only be done after confirming the window still exists,
                             // since otherwise we risk getting a `BadWindow` error if the window was
                             // dropped with queued events.
-                            let modifiers = self.xconn
+                            let modifiers = self
+                                .xconn
                                 .query_pointer(xev.event, xev.deviceid)
                                 .expect("Failed to query pointer device")
                                 .get_modifier_state();
@@ -977,19 +1042,20 @@ impl EventsLoop {
                         if !window_closed {
                             callback(Event::WindowEvent {
                                 window_id: mkwid(xev.event),
-                                event: CursorLeft { device_id: mkdid(xev.deviceid) },
+                                event: CursorLeft {
+                                    device_id: mkdid(xev.deviceid),
+                                },
                             });
                         }
                     }
                     ffi::XI_FocusIn => {
                         let xev: &ffi::XIFocusInEvent = unsafe { &*(xev.data as *const _) };
 
-                        let dpi_factor = match self.with_window(xev.event, |window| {
-                            window.get_hidpi_factor()
-                        }) {
-                            Some(dpi_factor) => dpi_factor,
-                            None => return,
-                        };
+                        let dpi_factor =
+                            match self.with_window(xev.event, |window| window.get_hidpi_factor()) {
+                                Some(dpi_factor) => dpi_factor,
+                                None => return,
+                            };
                         let window_id = mkwid(xev.event);
 
                         self.ime
@@ -997,17 +1063,21 @@ impl EventsLoop {
                             .focus(xev.event)
                             .expect("Failed to focus input context");
 
-                        callback(Event::WindowEvent { window_id, event: Focused(true) });
+                        callback(Event::WindowEvent {
+                            window_id,
+                            event: Focused(true),
+                        });
 
                         // The deviceid for this event is for a keyboard instead of a pointer,
                         // so we have to do a little extra work.
-                        let pointer_id = self.devices
+                        let pointer_id = self
+                            .devices
                             .borrow()
                             .get(&DeviceId(xev.deviceid))
                             .map(|device| device.attachment)
                             .unwrap_or(2);
 
-                        let position = LogicalPosition::from_physical(
+                        let position = PhysicalPosition::from_physical(
                             (xev.event_x as f64, xev.event_y as f64),
                             dpi_factor,
                         );
@@ -1017,12 +1087,14 @@ impl EventsLoop {
                                 device_id: mkdid(pointer_id),
                                 position,
                                 modifiers: ModifiersState::from(xev.mods),
-                            }
+                            },
                         });
                     }
                     ffi::XI_FocusOut => {
                         let xev: &ffi::XIFocusOutEvent = unsafe { &*(xev.data as *const _) };
-                        if !self.window_exists(xev.event) { return; }
+                        if !self.window_exists(xev.event) {
+                            return;
+                        }
                         self.ime
                             .borrow_mut()
                             .unfocus(xev.event)
@@ -1040,13 +1112,12 @@ impl EventsLoop {
                             ffi::XI_TouchBegin => TouchPhase::Started,
                             ffi::XI_TouchUpdate => TouchPhase::Moved,
                             ffi::XI_TouchEnd => TouchPhase::Ended,
-                            _ => unreachable!()
+                            _ => unreachable!(),
                         };
-                         let dpi_factor = self.with_window(xev.event, |window| {
-                            window.get_hidpi_factor()
-                        });
+                        let dpi_factor =
+                            self.with_window(xev.event, |window| window.get_hidpi_factor());
                         if let Some(dpi_factor) = dpi_factor {
-                            let location = LogicalPosition::from_physical(
+                            let location = PhysicalPosition::from_physical(
                                 (xev.event_x as f64, xev.event_y as f64),
                                 dpi_factor,
                             );
@@ -1065,14 +1136,17 @@ impl EventsLoop {
                     ffi::XI_RawButtonPress | ffi::XI_RawButtonRelease => {
                         let xev: &ffi::XIRawEvent = unsafe { &*(xev.data as *const _) };
                         if xev.flags & ffi::XIPointerEmulated == 0 {
-                            callback(Event::DeviceEvent { device_id: mkdid(xev.deviceid), event: DeviceEvent::Button {
-                                button: xev.detail as u32,
-                                state: match xev.evtype {
-                                    ffi::XI_RawButtonPress => Pressed,
-                                    ffi::XI_RawButtonRelease => Released,
-                                    _ => unreachable!(),
+                            callback(Event::DeviceEvent {
+                                device_id: mkdid(xev.deviceid),
+                                event: DeviceEvent::Button {
+                                    button: xev.detail as u32,
+                                    state: match xev.evtype {
+                                        ffi::XI_RawButtonPress => Pressed,
+                                        ffi::XI_RawButtonRelease => Released,
+                                        _ => unreachable!(),
+                                    },
                                 },
-                            }});
+                            });
                         }
                     }
 
@@ -1080,11 +1154,16 @@ impl EventsLoop {
                         let xev: &ffi::XIRawEvent = unsafe { &*(xev.data as *const _) };
                         let did = mkdid(xev.deviceid);
 
-                        let mask = unsafe { slice::from_raw_parts(xev.valuators.mask, xev.valuators.mask_len as usize) };
+                        let mask = unsafe {
+                            slice::from_raw_parts(
+                                xev.valuators.mask,
+                                xev.valuators.mask_len as usize,
+                            )
+                        };
                         let mut value = xev.raw_values;
                         let mut mouse_delta = (0.0, 0.0);
                         let mut scroll_delta = (0.0, 0.0);
-                        for i in 0..xev.valuators.mask_len*8 {
+                        for i in 0..xev.valuators.mask_len * 8 {
                             if ffi::XIMaskIsSet(mask, i) {
                                 let x = unsafe { *value };
                                 // We assume that every XInput2 device with analog axes is a pointing device emitting
@@ -1094,24 +1173,31 @@ impl EventsLoop {
                                     1 => mouse_delta.1 = x,
                                     2 => scroll_delta.0 = x as f32,
                                     3 => scroll_delta.1 = x as f32,
-                                    _ => {},
+                                    _ => {}
                                 }
-                                callback(Event::DeviceEvent { device_id: did, event: DeviceEvent::Motion {
-                                    axis: i as u32,
-                                    value: x,
-                                }});
+                                callback(Event::DeviceEvent {
+                                    device_id: did,
+                                    event: DeviceEvent::Motion {
+                                        axis: i as u32,
+                                        value: x,
+                                    },
+                                });
                                 value = unsafe { value.offset(1) };
                             }
                         }
                         if mouse_delta != (0.0, 0.0) {
-                            callback(Event::DeviceEvent { device_id: did, event: DeviceEvent::MouseMotion {
-                                delta: mouse_delta,
-                            }});
+                            callback(Event::DeviceEvent {
+                                device_id: did,
+                                event: DeviceEvent::MouseMotion { delta: mouse_delta },
+                            });
                         }
                         if scroll_delta != (0.0, 0.0) {
-                            callback(Event::DeviceEvent { device_id: did, event: DeviceEvent::MouseWheel {
-                                delta: LineDelta(scroll_delta.0, scroll_delta.1),
-                            }});
+                            callback(Event::DeviceEvent {
+                                device_id: did,
+                                event: DeviceEvent::MouseWheel {
+                                    delta: LineDelta(scroll_delta.0, scroll_delta.1),
+                                },
+                            });
                         }
                     }
 
@@ -1126,7 +1212,9 @@ impl EventsLoop {
 
                         let device_id = xev.sourceid;
                         let keycode = xev.detail;
-                        if keycode < 8 { return; }
+                        if keycode < 8 {
+                            return;
+                        }
                         let scancode = (keycode - 8) as u32;
 
                         let keysym = unsafe {
@@ -1136,7 +1224,9 @@ impl EventsLoop {
                                 0,
                             )
                         };
-                        self.xconn.check_errors().expect("Failed to lookup raw keysym");
+                        self.xconn
+                            .check_errors()
+                            .expect("Failed to lookup raw keysym");
 
                         let virtual_keycode = events::keysym_to_element(keysym as c_uint);
 
@@ -1158,12 +1248,21 @@ impl EventsLoop {
 
                     ffi::XI_HierarchyChanged => {
                         let xev: &ffi::XIHierarchyEvent = unsafe { &*(xev.data as *const _) };
-                        for info in unsafe { slice::from_raw_parts(xev.info, xev.num_info as usize) } {
+                        for info in
+                            unsafe { slice::from_raw_parts(xev.info, xev.num_info as usize) }
+                        {
                             if 0 != info.flags & (ffi::XISlaveAdded | ffi::XIMasterAdded) {
                                 self.init_device(info.deviceid);
-                                callback(Event::DeviceEvent { device_id: mkdid(info.deviceid), event: DeviceEvent::Added });
-                            } else if 0 != info.flags & (ffi::XISlaveRemoved | ffi::XIMasterRemoved) {
-                                callback(Event::DeviceEvent { device_id: mkdid(info.deviceid), event: DeviceEvent::Removed });
+                                callback(Event::DeviceEvent {
+                                    device_id: mkdid(info.deviceid),
+                                    event: DeviceEvent::Added,
+                                });
+                            } else if 0 != info.flags & (ffi::XISlaveRemoved | ffi::XIMasterRemoved)
+                            {
+                                callback(Event::DeviceEvent {
+                                    device_id: mkdid(info.deviceid),
+                                    event: DeviceEvent::Removed,
+                                });
                                 let mut devices = self.devices.borrow_mut();
                                 devices.remove(&DeviceId(info.deviceid));
                             }
@@ -1172,7 +1271,7 @@ impl EventsLoop {
 
                     _ => {}
                 }
-            },
+            }
             _ => {
                 if event_type == self.randr_event_offset {
                     // In the future, it would be quite easy to emit monitor hotplug events.
@@ -1193,13 +1292,14 @@ impl EventsLoop {
                                                     callback(Event::WindowEvent {
                                                         window_id: mkwid(window_id.0),
                                                         event: WindowEvent::HiDpiFactorChanged(
-                                                            new_monitor.hidpi_factor
+                                                            new_monitor.hidpi_factor,
                                                         ),
                                                     });
-                                                    let (width, height) = match window.get_inner_size_physical() {
-                                                        Some(result) => result,
-                                                        None => continue,
-                                                    };
+                                                    let (width, height) =
+                                                        match window.get_inner_size_physical() {
+                                                            Some(result) => result,
+                                                            None => continue,
+                                                        };
                                                     let (_, _, flusher) = window.adjust_for_dpi(
                                                         prev_monitor.hidpi_factor,
                                                         new_monitor.hidpi_factor,
@@ -1215,13 +1315,13 @@ impl EventsLoop {
                         }
                     }
                 }
-            },
+            }
         }
 
         match self.ime_receiver.try_recv() {
             Ok((window_id, x, y)) => {
                 self.ime.borrow_mut().send_xim_spot(window_id, x, y);
-            },
+            }
             Err(_) => (),
         }
     }
@@ -1236,11 +1336,13 @@ impl EventsLoop {
     }
 
     fn with_window<F, T>(&self, window_id: ffi::Window, callback: F) -> Option<T>
-        where F: Fn(&UnownedWindow) -> T
+    where
+        F: Fn(&UnownedWindow) -> T,
     {
         let mut deleted = false;
         let window_id = WindowId(window_id);
-        let result = self.windows
+        let result = self
+            .windows
             .borrow()
             .get(&window_id)
             .and_then(|window| {
@@ -1268,7 +1370,7 @@ impl EventsLoopProxy {
             (Some(wakeup), Some(display)) => {
                 wakeup.store(true, atomic::Ordering::Relaxed);
                 display
-            },
+            }
             _ => return Err(EventsLoopClosed),
         };
 
@@ -1277,13 +1379,16 @@ impl EventsLoopProxy {
         // NOTE: This design is taken from the old `WindowProxy::wakeup` implementation. It
         // assumes that X11 is thread safe. Is this true?
         // (WARNING: it's probably not true)
-        display.send_client_msg(
-            self.wakeup_dummy_window,
-            self.wakeup_dummy_window,
-            0,
-            None,
-            [0, 0, 0, 0, 0],
-        ).flush().expect("Failed to call XSendEvent after wakeup");
+        display
+            .send_client_msg(
+                self.wakeup_dummy_window,
+                self.wakeup_dummy_window,
+                0,
+                None,
+                [0, 0, 0, 0, 0],
+            )
+            .flush()
+            .expect("Failed to call XSendEvent after wakeup");
 
         Ok(())
     }
@@ -1300,19 +1405,17 @@ impl<'a> DeviceInfo<'a> {
         unsafe {
             let mut count = mem::uninitialized();
             let info = (xconn.xinput2.XIQueryDevice)(xconn.display, device, &mut count);
-            xconn.check_errors()
-                .ok()
-                .and_then(|_| {
-                    if info.is_null() || count == 0 {
-                        None
-                    } else {
-                        Some(DeviceInfo {
-                            xconn,
-                            info,
-                            count: count as usize,
-                        })
-                    }
-                })
+            xconn.check_errors().ok().and_then(|_| {
+                if info.is_null() || count == 0 {
+                    None
+                } else {
+                    Some(DeviceInfo {
+                        xconn,
+                        info,
+                        count: count as usize,
+                    })
+                }
+            })
         }
     }
 }
@@ -1363,10 +1466,11 @@ impl Window {
     pub fn new(
         event_loop: &EventsLoop,
         attribs: WindowAttributes,
-        pl_attribs: PlatformSpecificWindowBuilderAttributes
+        pl_attribs: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<Self, CreationError> {
         let window = Arc::new(UnownedWindow::new(&event_loop, attribs, pl_attribs)?);
-        event_loop.windows
+        event_loop
+            .windows
             .borrow_mut()
             .insert(window.id(), Arc::downgrade(&window));
         Ok(Window(window))
@@ -1389,11 +1493,14 @@ impl Drop for Window {
 /// extract the cookie from a GenericEvent XEvent and release the cookie data once it has been processed
 struct GenericEventCookie<'a> {
     xconn: &'a XConnection,
-    cookie: ffi::XGenericEventCookie
+    cookie: ffi::XGenericEventCookie,
 }
 
 impl<'a> GenericEventCookie<'a> {
-    fn from_event<'b>(xconn: &'b XConnection, event: ffi::XEvent) -> Option<GenericEventCookie<'b>> {
+    fn from_event<'b>(
+        xconn: &'b XConnection,
+        event: ffi::XEvent,
+    ) -> Option<GenericEventCookie<'b>> {
         unsafe {
             let mut cookie: ffi::XGenericEventCookie = From::from(event);
             if (xconn.xlib.XGetEventData)(xconn.display, &mut cookie) == ffi::True {
@@ -1420,8 +1527,12 @@ struct XExtension {
     first_error_id: c_int,
 }
 
-fn mkwid(w: ffi::Window) -> ::WindowId { ::WindowId(::platform::WindowId::X(WindowId(w))) }
-fn mkdid(w: c_int) -> ::DeviceId { ::DeviceId(::platform::DeviceId::X(DeviceId(w))) }
+fn mkwid(w: ffi::Window) -> ::WindowId {
+    ::WindowId(::platform::WindowId::X(WindowId(w)))
+}
+fn mkdid(w: c_int) -> ::DeviceId {
+    ::DeviceId(::platform::DeviceId::X(DeviceId(w)))
+}
 
 #[derive(Debug)]
 struct Device {
@@ -1458,23 +1569,30 @@ impl Device {
                 | ffi::XI_RawKeyPressMask
                 | ffi::XI_RawKeyReleaseMask;
             // The request buffer is flushed when we poll for events
-            el.xconn.select_xinput_events(el.root, info.deviceid, mask).queue();
+            el.xconn
+                .select_xinput_events(el.root, info.deviceid, mask)
+                .queue();
 
             // Identify scroll axes
             for class_ptr in Device::classes(info) {
                 let class = unsafe { &**class_ptr };
                 match class._type {
                     ffi::XIScrollClass => {
-                        let info = unsafe { mem::transmute::<&ffi::XIAnyClassInfo, &ffi::XIScrollClassInfo>(class) };
-                        scroll_axes.push((info.number, ScrollAxis {
-                            increment: info.increment,
-                            orientation: match info.scroll_type {
-                                ffi::XIScrollTypeHorizontal => ScrollOrientation::Horizontal,
-                                ffi::XIScrollTypeVertical => ScrollOrientation::Vertical,
-                                _ => { unreachable!() }
+                        let info = unsafe {
+                            mem::transmute::<&ffi::XIAnyClassInfo, &ffi::XIScrollClassInfo>(class)
+                        };
+                        scroll_axes.push((
+                            info.number,
+                            ScrollAxis {
+                                increment: info.increment,
+                                orientation: match info.scroll_type {
+                                    ffi::XIScrollTypeHorizontal => ScrollOrientation::Horizontal,
+                                    ffi::XIScrollTypeVertical => ScrollOrientation::Vertical,
+                                    _ => unreachable!(),
+                                },
+                                position: 0.0,
                             },
-                            position: 0.0,
-                        }));
+                        ));
                     }
                     _ => {}
                 }
@@ -1496,8 +1614,14 @@ impl Device {
                 let class = unsafe { &**class_ptr };
                 match class._type {
                     ffi::XIValuatorClass => {
-                        let info = unsafe { mem::transmute::<&ffi::XIAnyClassInfo, &ffi::XIValuatorClassInfo>(class) };
-                        if let Some(&mut (_, ref mut axis)) = self.scroll_axes.iter_mut().find(|&&mut (axis, _)| axis == info.number) {
+                        let info = unsafe {
+                            mem::transmute::<&ffi::XIAnyClassInfo, &ffi::XIValuatorClassInfo>(class)
+                        };
+                        if let Some(&mut (_, ref mut axis)) = self
+                            .scroll_axes
+                            .iter_mut()
+                            .find(|&&mut (axis, _)| axis == info.number)
+                        {
                             axis.position = info.value;
                         }
                     }
@@ -1509,11 +1633,18 @@ impl Device {
 
     #[inline]
     fn physical_device(info: &ffi::XIDeviceInfo) -> bool {
-        info._use == ffi::XISlaveKeyboard || info._use == ffi::XISlavePointer || info._use == ffi::XIFloatingSlave
+        info._use == ffi::XISlaveKeyboard
+            || info._use == ffi::XISlavePointer
+            || info._use == ffi::XIFloatingSlave
     }
 
     #[inline]
     fn classes(info: &ffi::XIDeviceInfo) -> &[*const ffi::XIAnyClassInfo] {
-        unsafe { slice::from_raw_parts(info.classes as *const *const ffi::XIAnyClassInfo, info.num_classes as usize) }
+        unsafe {
+            slice::from_raw_parts(
+                info.classes as *const *const ffi::XIAnyClassInfo,
+                info.num_classes as usize,
+            )
+        }
     }
 }

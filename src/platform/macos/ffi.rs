@@ -53,11 +53,11 @@ impl NSMutableAttributedString for id {
     }
 
     unsafe fn initWithString(self, string: id) -> id {
-        msg_send![self, initWithString:string]
+        msg_send![self, initWithString: string]
     }
 
     unsafe fn initWithAttributedString(self, string: id) -> id {
-        msg_send![self, initWithAttributedString:string]
+        msg_send![self, initWithAttributedString: string]
     }
 
     unsafe fn string(self) -> id {

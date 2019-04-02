@@ -1,9 +1,9 @@
 use std::env;
+use std::ffi::{CStr, CString, IntoStringError};
 use std::fmt;
+use std::os::raw::c_char;
 use std::ptr;
 use std::sync::Arc;
-use std::os::raw::c_char;
-use std::ffi::{CStr, CString, IntoStringError};
 
 use parking_lot::Mutex;
 
@@ -13,10 +13,7 @@ lazy_static! {
     static ref GLOBAL_LOCK: Mutex<()> = Default::default();
 }
 
-unsafe fn open_im(
-    xconn: &Arc<XConnection>,
-    locale_modifiers: &CStr,
-) -> Option<ffi::XIM> {
+unsafe fn open_im(xconn: &Arc<XConnection>, locale_modifiers: &CStr) -> Option<ffi::XIM> {
     let _lock = GLOBAL_LOCK.lock();
 
     // XSetLocaleModifiers returns...
@@ -97,11 +94,9 @@ unsafe fn get_xim_servers(xconn: &Arc<XConnection>) -> Result<Vec<String>, GetXi
 
     let root = (xconn.xlib.XDefaultRootWindow)(xconn.display);
 
-    let mut atoms: Vec<ffi::Atom> = xconn.get_property(
-        root,
-        servers_atom,
-        ffi::XA_ATOM,
-    ).map_err(GetXimServersError::GetPropertyError)?;
+    let mut atoms: Vec<ffi::Atom> = xconn
+        .get_property(root, servers_atom, ffi::XA_ATOM)
+        .map_err(GetXimServersError::GetPropertyError)?;
 
     let mut names: Vec<*const c_char> = Vec::with_capacity(atoms.len());
     (xconn.xlib.XGetAtomNames)(
@@ -135,15 +130,12 @@ impl InputMethodName {
     pub fn from_string(string: String) -> Self {
         let c_string = CString::new(string.clone())
             .expect("String used to construct CString contained null byte");
-        InputMethodName {
-            c_string,
-            string,
-        }
+        InputMethodName { c_string, string }
     }
 
     pub fn from_str(string: &str) -> Self {
-        let c_string = CString::new(string)
-            .expect("String used to construct CString contained null byte");
+        let c_string =
+            CString::new(string).expect("String used to construct CString contained null byte");
         InputMethodName {
             c_string,
             string: string.to_owned(),

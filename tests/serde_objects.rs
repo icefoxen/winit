@@ -3,13 +3,13 @@
 extern crate serde;
 extern crate winit;
 
+use serde::{Deserialize, Serialize};
+use winit::dpi::{PhysicalPosition, PhysicalPosition, PhysicalSize, PhysicalSize};
 use winit::{ControlFlow, MouseCursor};
 use winit::{
-    KeyboardInput, TouchPhase, ElementState, MouseButton, MouseScrollDelta, VirtualKeyCode,
-    ModifiersState
+    ElementState, KeyboardInput, ModifiersState, MouseButton, MouseScrollDelta, TouchPhase,
+    VirtualKeyCode,
 };
-use winit::dpi::{LogicalPosition, PhysicalPosition, LogicalSize, PhysicalSize};
-use serde::{Serialize, Deserialize};
 
 fn needs_serde<S: Serialize + Deserialize<'static>>() {}
 
@@ -32,8 +32,8 @@ fn events_serde() {
 
 #[test]
 fn dpi_serde() {
-    needs_serde::<LogicalPosition>();
     needs_serde::<PhysicalPosition>();
-    needs_serde::<LogicalSize>();
+    needs_serde::<PhysicalPosition>();
+    needs_serde::<PhysicalSize>();
     needs_serde::<PhysicalSize>();
 }

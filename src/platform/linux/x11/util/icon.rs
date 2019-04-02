@@ -1,5 +1,5 @@
-use {Icon, Pixel, PIXEL_SIZE};
 use super::*;
+use {Icon, Pixel, PIXEL_SIZE};
 
 impl Pixel {
     pub fn to_packed_argb(&self) -> Cardinal {

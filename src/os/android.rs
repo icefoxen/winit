@@ -30,9 +30,6 @@ impl WindowExt for Window {
 }
 
 /// Additional methods on `WindowBuilder` that are specific to Android.
-pub trait WindowBuilderExt {
+pub trait WindowBuilderExt {}
 
-}
-
-impl WindowBuilderExt for WindowBuilder {
-}
+impl WindowBuilderExt for WindowBuilder {}

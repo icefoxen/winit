@@ -1,6 +1,6 @@
 extern crate winit;
 
-fn needs_send<T:Send>() {}
+fn needs_send<T: Send>() {}
 
 #[test]
 fn events_loop_proxy_send() {

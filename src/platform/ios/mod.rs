@@ -60,48 +60,28 @@
 
 #![cfg(target_os = "ios")]
 
-use std::{fmt, mem, ptr};
 use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::os::raw::*;
 use std::sync::Arc;
+use std::{fmt, mem, ptr};
 
 use objc::declare::ClassDecl;
-use objc::runtime::{BOOL, Class, Object, Sel, YES};
+use objc::runtime::{Class, Object, Sel, BOOL, YES};
 
-use {
-    CreationError,
-    Event,
-    LogicalPosition,
-    LogicalSize,
-    MouseCursor,
-    PhysicalPosition,
-    PhysicalSize,
-    WindowAttributes,
-    WindowEvent,
-    WindowId as RootEventId,
-};
 use events::{Touch, TouchPhase};
 use window::MonitorId as RootMonitorId;
+use {
+    CreationError, Event, MouseCursor, PhysicalPosition, PhysicalPosition, PhysicalSize,
+    PhysicalSize, WindowAttributes, WindowEvent, WindowId as RootEventId,
+};
 
 mod ffi;
 use self::ffi::{
-    CFTimeInterval,
-    CFRunLoopRunInMode,
-    CGFloat,
-    CGPoint,
-    CGRect,
-    id,
-    JBLEN,
-    JmpBuf,
-    kCFRunLoopDefaultMode,
-    kCFRunLoopRunHandledSource,
-    longjmp,
-    nil,
-    NSString,
-    setjmp,
-    UIApplicationMain,
- };
+    id, kCFRunLoopDefaultMode, kCFRunLoopRunHandledSource, longjmp, nil, setjmp,
+    CFRunLoopRunInMode, CFTimeInterval, CGFloat, CGPoint, CGRect, JmpBuf, NSString,
+    UIApplicationMain, JBLEN,
+};
 
 static mut JMPBUF: Option<Box<JmpBuf>> = None;
 
@@ -118,12 +98,12 @@ struct DelegateState {
     window: id,
     controller: id,
     view: id,
-    size: LogicalSize,
+    size: PhysicalSize,
     scale: f64,
 }
 
 impl DelegateState {
-    fn new(window: id, controller: id, view: id, size: LogicalSize, scale: f64) -> DelegateState {
+    fn new(window: id, controller: id, view: id, size: PhysicalSize, scale: f64) -> DelegateState {
         DelegateState {
             window,
             controller,
@@ -213,7 +193,9 @@ impl EventsLoop {
                 panic!("`EventsLoop` can only be created on the main thread on iOS");
             }
         }
-        EventsLoop { events_queue: Default::default() }
+        EventsLoop {
+            events_queue: Default::default(),
+        }
     }
 
     #[inline]
@@ -229,7 +211,8 @@ impl EventsLoop {
     }
 
     pub fn poll_events<F>(&mut self, mut callback: F)
-        where F: FnMut(::Event)
+    where
+        F: FnMut(::Event),
     {
         if let Some(event) = self.events_queue.borrow_mut().pop_front() {
             callback(event);
@@ -238,7 +221,10 @@ impl EventsLoop {
 
         unsafe {
             // jump hack, so we won't quit on willTerminate event before processing it
-            assert!(JMPBUF.is_some(), "`EventsLoop::poll_events` must be called after window creation on iOS");
+            assert!(
+                JMPBUF.is_some(),
+                "`EventsLoop::poll_events` must be called after window creation on iOS"
+            );
             if setjmp(mem::transmute_copy(&mut JMPBUF)) != 0 {
                 if let Some(event) = self.events_queue.borrow_mut().pop_front() {
                     callback(event);
@@ -250,7 +236,9 @@ impl EventsLoop {
         unsafe {
             // run runloop
             let seconds: CFTimeInterval = 0.000002;
-            while CFRunLoopRunInMode(kCFRunLoopDefaultMode, seconds, 1) == kCFRunLoopRunHandledSource {}
+            while CFRunLoopRunInMode(kCFRunLoopDefaultMode, seconds, 1)
+                == kCFRunLoopRunHandledSource
+            {}
         }
 
         if let Some(event) = self.events_queue.borrow_mut().pop_front() {
@@ -259,7 +247,8 @@ impl EventsLoop {
     }
 
     pub fn run_forever<F>(&mut self, mut callback: F)
-        where F: FnMut(::Event) -> ::ControlFlow,
+    where
+        F: FnMut(::Event) -> ::ControlFlow,
     {
         // Yeah that's a very bad implementation.
         loop {
@@ -328,7 +317,10 @@ impl Window {
     ) -> Result<Window, CreationError> {
         unsafe {
             debug_assert!(mem::size_of_val(&JMPBUF) == mem::size_of::<Box<JmpBuf>>());
-            assert!(mem::replace(&mut JMPBUF, Some(Box::new([0; JBLEN]))).is_none(), "Only one `Window` is supported on iOS");
+            assert!(
+                mem::replace(&mut JMPBUF, Some(Box::new([0; JBLEN]))).is_none(),
+                "Only one `Window` is supported on iOS"
+            );
         }
 
         unsafe {
@@ -339,20 +331,32 @@ impl Window {
                 let state: *mut c_void = *(&*delegate).get_ivar("winitState");
                 let mut delegate_state = Box::from_raw(state as *mut DelegateState);
                 let events_queue = &*ev.events_queue;
-                (&mut *delegate).set_ivar("eventsQueue", mem::transmute::<_, *mut c_void>(events_queue));
+                (&mut *delegate).set_ivar(
+                    "eventsQueue",
+                    mem::transmute::<_, *mut c_void>(events_queue),
+                );
 
                 // easiest? way to get access to PlatformSpecificWindowBuilderAttributes to configure the view
                 let rect: CGRect = msg_send![MonitorId.get_uiscreen(), bounds];
 
                 let uiview_class = class!(UIView);
                 let root_view_class = pl_attributes.root_view_class;
-                let is_uiview: BOOL = msg_send![root_view_class, isSubclassOfClass:uiview_class];
-                assert!(is_uiview == YES, "`root_view_class` must inherit from `UIView`");
+                let is_uiview: BOOL = msg_send![root_view_class, isSubclassOfClass: uiview_class];
+                assert!(
+                    is_uiview == YES,
+                    "`root_view_class` must inherit from `UIView`"
+                );
 
                 delegate_state.view = msg_send![root_view_class, alloc];
-                assert!(!delegate_state.view.is_null(), "Failed to create `UIView` instance");
-                delegate_state.view = msg_send![delegate_state.view, initWithFrame:rect];
-                assert!(!delegate_state.view.is_null(), "Failed to initialize `UIView` instance");
+                assert!(
+                    !delegate_state.view.is_null(),
+                    "Failed to create `UIView` instance"
+                );
+                delegate_state.view = msg_send![delegate_state.view, initWithFrame: rect];
+                assert!(
+                    !delegate_state.view.is_null(),
+                    "Failed to initialize `UIView` instance"
+                );
 
                 let _: () = msg_send![delegate_state.controller, setView:delegate_state.view];
                 let _: () = msg_send![delegate_state.window, makeKeyAndVisible];
@@ -396,44 +400,44 @@ impl Window {
     }
 
     #[inline]
-    pub fn get_position(&self) -> Option<LogicalPosition> {
+    pub fn get_position(&self) -> Option<PhysicalPosition> {
         // N/A
         None
     }
 
     #[inline]
-    pub fn get_inner_position(&self) -> Option<LogicalPosition> {
+    pub fn get_inner_position(&self) -> Option<PhysicalPosition> {
         // N/A
         None
     }
 
     #[inline]
-    pub fn set_position(&self, _position: LogicalPosition) {
+    pub fn set_position(&self, _position: PhysicalPosition) {
         // N/A
     }
 
     #[inline]
-    pub fn get_inner_size(&self) -> Option<LogicalSize> {
+    pub fn get_inner_size(&self) -> Option<PhysicalSize> {
         Some(self.delegate_state.size)
     }
 
     #[inline]
-    pub fn get_outer_size(&self) -> Option<LogicalSize> {
+    pub fn get_outer_size(&self) -> Option<PhysicalSize> {
         self.get_inner_size()
     }
 
     #[inline]
-    pub fn set_inner_size(&self, _size: LogicalSize) {
+    pub fn set_inner_size(&self, _size: PhysicalSize) {
         // N/A
     }
 
     #[inline]
-    pub fn set_min_dimensions(&self, _dimensions: Option<LogicalSize>) {
+    pub fn set_min_dimensions(&self, _dimensions: Option<PhysicalSize>) {
         // N/A
     }
 
     #[inline]
-    pub fn set_max_dimensions(&self, _dimensions: Option<LogicalSize>) {
+    pub fn set_max_dimensions(&self, _dimensions: Option<PhysicalSize>) {
         // N/A
     }
 
@@ -463,7 +467,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_cursor_position(&self, _position: LogicalPosition) -> Result<(), String> {
+    pub fn set_cursor_position(&self, _position: PhysicalPosition) -> Result<(), String> {
         Err("Setting cursor position is not possible on iOS.".to_owned())
     }
 
@@ -495,7 +499,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_ime_spot(&self, _logical_spot: LogicalPosition) {
+    pub fn set_ime_spot(&self, _logical_spot: PhysicalPosition) {
         // N/A
     }
 
@@ -523,7 +527,7 @@ impl Window {
 }
 
 fn create_delegate_class() {
-    extern fn did_finish_launching(this: &mut Object, _: Sel, _: id, _: id) -> BOOL {
+    extern "C" fn did_finish_launching(this: &mut Object, _: Sel, _: id, _: id) -> BOOL {
         let screen_class = class!(UIScreen);
         let window_class = class!(UIWindow);
         let controller_class = class!(UIViewController);
@@ -540,24 +544,33 @@ fn create_delegate_class() {
             let view_controller: id = msg_send![controller_class, alloc];
             let view_controller: id = msg_send![view_controller, init];
 
-            let _: () = msg_send![window, setRootViewController:view_controller];
+            let _: () = msg_send![window, setRootViewController: view_controller];
 
-            let state = Box::new(DelegateState::new(window, view_controller, ptr::null_mut(), size, scale as f64));
+            let state = Box::new(DelegateState::new(
+                window,
+                view_controller,
+                ptr::null_mut(),
+                size,
+                scale as f64,
+            ));
             let state_ptr: *mut DelegateState = mem::transmute(state);
             this.set_ivar("winitState", state_ptr as *mut c_void);
 
             // The `UIView` is setup in `Window::new` which gets `longjmp`'ed to here.
             // This makes it easier to configure the specific `UIView` type.
-            let _: () = msg_send![this, performSelector:sel!(postLaunch:) withObject:nil afterDelay:0.0];
+            let _: () =
+                msg_send![this, performSelector:sel!(postLaunch:) withObject:nil afterDelay:0.0];
         }
         YES
     }
 
-    extern fn post_launch(_: &Object, _: Sel, _: id) {
-        unsafe { longjmp(mem::transmute_copy(&mut JMPBUF), 1); }
+    extern "C" fn post_launch(_: &Object, _: Sel, _: id) {
+        unsafe {
+            longjmp(mem::transmute_copy(&mut JMPBUF), 1);
+        }
     }
 
-    extern fn did_become_active(this: &Object, _: Sel, _: id) {
+    extern "C" fn did_become_active(this: &Object, _: Sel, _: id) {
         unsafe {
             let events_queue: *mut c_void = *this.get_ivar("eventsQueue");
             let events_queue = &*(events_queue as *const RefCell<VecDeque<Event>>);
@@ -568,7 +581,7 @@ fn create_delegate_class() {
         }
     }
 
-    extern fn will_resign_active(this: &Object, _: Sel, _: id) {
+    extern "C" fn will_resign_active(this: &Object, _: Sel, _: id) {
         unsafe {
             let events_queue: *mut c_void = *this.get_ivar("eventsQueue");
             let events_queue = &*(events_queue as *const RefCell<VecDeque<Event>>);
@@ -579,7 +592,7 @@ fn create_delegate_class() {
         }
     }
 
-    extern fn will_enter_foreground(this: &Object, _: Sel, _: id) {
+    extern "C" fn will_enter_foreground(this: &Object, _: Sel, _: id) {
         unsafe {
             let events_queue: *mut c_void = *this.get_ivar("eventsQueue");
             let events_queue = &*(events_queue as *const RefCell<VecDeque<Event>>);
@@ -587,7 +600,7 @@ fn create_delegate_class() {
         }
     }
 
-    extern fn did_enter_background(this: &Object, _: Sel, _: id) {
+    extern "C" fn did_enter_background(this: &Object, _: Sel, _: id) {
         unsafe {
             let events_queue: *mut c_void = *this.get_ivar("eventsQueue");
             let events_queue = &*(events_queue as *const RefCell<VecDeque<Event>>);
@@ -595,7 +608,7 @@ fn create_delegate_class() {
         }
     }
 
-    extern fn will_terminate(this: &Object, _: Sel, _: id) {
+    extern "C" fn will_terminate(this: &Object, _: Sel, _: id) {
         unsafe {
             let events_queue: *mut c_void = *this.get_ivar("eventsQueue");
             let events_queue = &*(events_queue as *const RefCell<VecDeque<Event>>);
@@ -609,7 +622,7 @@ fn create_delegate_class() {
         }
     }
 
-    extern fn handle_touches(this: &Object, _: Sel, touches: id, _:id) {
+    extern "C" fn handle_touches(this: &Object, _: Sel, touches: id, _: id) {
         unsafe {
             let events_queue: *mut c_void = *this.get_ivar("eventsQueue");
             let events_queue = &*(events_queue as *const RefCell<VecDeque<Event>>);
@@ -619,9 +632,9 @@ fn create_delegate_class() {
             loop {
                 let touch: id = msg_send![touches_enum, nextObject];
                 if touch == nil {
-                    break
+                    break;
                 }
-                let location: CGPoint = msg_send![touch, locationInView:nil];
+                let location: CGPoint = msg_send![touch, locationInView: nil];
                 let touch_id = touch as u64;
                 let phase: i32 = msg_send![touch, phase];
 
@@ -637,8 +650,8 @@ fn create_delegate_class() {
                             // 2 is UITouchPhaseStationary and is not expected here
                             3 => TouchPhase::Ended,
                             4 => TouchPhase::Cancelled,
-                            _ => panic!("unexpected touch phase: {:?}", phase)
-                        }
+                            _ => panic!("unexpected touch phase: {:?}", phase),
+                        },
                     }),
                 });
             }
@@ -646,43 +659,64 @@ fn create_delegate_class() {
     }
 
     let ui_responder = class!(UIResponder);
-    let mut decl = ClassDecl::new("AppDelegate", ui_responder).expect("Failed to declare class `AppDelegate`");
+    let mut decl =
+        ClassDecl::new("AppDelegate", ui_responder).expect("Failed to declare class `AppDelegate`");
 
     unsafe {
-        decl.add_method(sel!(application:didFinishLaunchingWithOptions:),
-                        did_finish_launching as extern fn(&mut Object, Sel, id, id) -> BOOL);
+        decl.add_method(
+            sel!(application:didFinishLaunchingWithOptions:),
+            did_finish_launching as extern "C" fn(&mut Object, Sel, id, id) -> BOOL,
+        );
 
-        decl.add_method(sel!(applicationDidBecomeActive:),
-                        did_become_active as extern fn(&Object, Sel, id));
+        decl.add_method(
+            sel!(applicationDidBecomeActive:),
+            did_become_active as extern "C" fn(&Object, Sel, id),
+        );
 
-        decl.add_method(sel!(applicationWillResignActive:),
-                        will_resign_active as extern fn(&Object, Sel, id));
+        decl.add_method(
+            sel!(applicationWillResignActive:),
+            will_resign_active as extern "C" fn(&Object, Sel, id),
+        );
 
-        decl.add_method(sel!(applicationWillEnterForeground:),
-                        will_enter_foreground as extern fn(&Object, Sel, id));
+        decl.add_method(
+            sel!(applicationWillEnterForeground:),
+            will_enter_foreground as extern "C" fn(&Object, Sel, id),
+        );
 
-        decl.add_method(sel!(applicationDidEnterBackground:),
-                        did_enter_background as extern fn(&Object, Sel, id));
+        decl.add_method(
+            sel!(applicationDidEnterBackground:),
+            did_enter_background as extern "C" fn(&Object, Sel, id),
+        );
 
-        decl.add_method(sel!(applicationWillTerminate:),
-                        will_terminate as extern fn(&Object, Sel, id));
+        decl.add_method(
+            sel!(applicationWillTerminate:),
+            will_terminate as extern "C" fn(&Object, Sel, id),
+        );
 
+        decl.add_method(
+            sel!(touchesBegan:withEvent:),
+            handle_touches as extern "C" fn(this: &Object, _: Sel, _: id, _: id),
+        );
 
-        decl.add_method(sel!(touchesBegan:withEvent:),
-                        handle_touches as extern fn(this: &Object, _: Sel, _: id, _:id));
+        decl.add_method(
+            sel!(touchesMoved:withEvent:),
+            handle_touches as extern "C" fn(this: &Object, _: Sel, _: id, _: id),
+        );
 
-        decl.add_method(sel!(touchesMoved:withEvent:),
-                        handle_touches as extern fn(this: &Object, _: Sel, _: id, _:id));
+        decl.add_method(
+            sel!(touchesEnded:withEvent:),
+            handle_touches as extern "C" fn(this: &Object, _: Sel, _: id, _: id),
+        );
 
-        decl.add_method(sel!(touchesEnded:withEvent:),
-                        handle_touches as extern fn(this: &Object, _: Sel, _: id, _:id));
+        decl.add_method(
+            sel!(touchesCancelled:withEvent:),
+            handle_touches as extern "C" fn(this: &Object, _: Sel, _: id, _: id),
+        );
 
-        decl.add_method(sel!(touchesCancelled:withEvent:),
-                        handle_touches as extern fn(this: &Object, _: Sel, _: id, _:id));
-
-
-        decl.add_method(sel!(postLaunch:),
-                        post_launch as extern fn(&Object, Sel, id));
+        decl.add_method(
+            sel!(postLaunch:),
+            post_launch as extern "C" fn(&Object, Sel, id),
+        );
 
         decl.add_ivar::<*mut c_void>("winitState");
         decl.add_ivar::<*mut c_void>("eventsQueue");
@@ -694,7 +728,12 @@ fn create_delegate_class() {
 #[inline]
 fn start_app() {
     unsafe {
-        UIApplicationMain(0, ptr::null(), nil, NSString::alloc(nil).init_str("AppDelegate"));
+        UIApplicationMain(
+            0,
+            ptr::null(),
+            nil,
+            NSString::alloc(nil).init_str("AppDelegate"),
+        );
     }
 }
 

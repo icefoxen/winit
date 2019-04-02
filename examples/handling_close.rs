@@ -11,9 +11,9 @@ fn main() {
     let mut close_requested = false;
 
     events_loop.run_forever(|event| {
-        use winit::WindowEvent::*;
         use winit::ElementState::Released;
         use winit::VirtualKeyCode::{N, Y};
+        use winit::WindowEvent::*;
 
         match event {
             winit::Event::WindowEvent { event, .. } => match event {

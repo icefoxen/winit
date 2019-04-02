@@ -14,12 +14,13 @@ fn main() {
             match event {
                 CloseRequested => return winit::ControlFlow::Break,
                 KeyboardInput {
-                    input: winit::KeyboardInput {
-                        state: winit::ElementState::Released,
-                        virtual_keycode: Some(key),
-                        modifiers,
-                        ..
-                    },
+                    input:
+                        winit::KeyboardInput {
+                            state: winit::ElementState::Released,
+                            virtual_keycode: Some(key),
+                            modifiers,
+                            ..
+                        },
                     ..
                 } => {
                     use winit::VirtualKeyCode::*;

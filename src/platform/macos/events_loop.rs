@@ -1,13 +1,17 @@
-use {ControlFlow, EventsLoopClosed};
-use cocoa::{self, appkit, foundation};
-use cocoa::appkit::{NSApplication, NSEvent, NSEventMask, NSEventModifierFlags, NSEventPhase, NSView, NSWindow};
-use events::{self, ElementState, Event, TouchPhase, WindowEvent, DeviceEvent, ModifiersState, KeyboardInput};
-use std::collections::VecDeque;
-use std::sync::{Arc, Mutex, Weak};
 use super::window::Window2;
-use std;
-use std::os::raw::*;
 use super::DeviceId;
+use cocoa::appkit::{
+    NSApplication, NSEvent, NSEventMask, NSEventModifierFlags, NSEventPhase, NSView, NSWindow,
+};
+use cocoa::{self, appkit, foundation};
+use events::{
+    self, DeviceEvent, ElementState, Event, KeyboardInput, ModifiersState, TouchPhase, WindowEvent,
+};
+use std;
+use std::collections::VecDeque;
+use std::os::raw::*;
+use std::sync::{Arc, Mutex, Weak};
+use {ControlFlow, EventsLoopClosed};
 
 pub struct EventsLoop {
     modifiers: Modifiers,
@@ -48,14 +52,14 @@ pub struct UserCallback {
     mutex: Mutex<Option<*mut FnMut(Event)>>,
 }
 
-
 impl Shared {
-
     pub fn new() -> Self {
         Shared {
             windows: Mutex::new(Vec::new()),
             pending_events: Mutex::new(VecDeque::new()),
-            user_callback: UserCallback { mutex: Mutex::new(None) },
+            user_callback: UserCallback {
+                mutex: Mutex::new(None),
+            },
         }
     }
 
@@ -98,9 +102,7 @@ impl Shared {
             });
         }
     }
-
 }
-
 
 impl Modifiers {
     pub fn new() -> Self {
@@ -113,9 +115,7 @@ impl Modifiers {
     }
 }
 
-
 impl UserCallback {
-
     // Here we store user's `callback` behind the mutex so that they may be safely shared between
     // each of the window delegates.
     //
@@ -124,7 +124,8 @@ impl UserCallback {
     // beginning of a call to `poll_events` and `run_forever`, both of which *must* drop the
     // callback at the end of their scope using the `drop` method.
     fn store<F>(&self, callback: &mut F)
-        where F: FnMut(Event)
+    where
+        F: FnMut(Event),
     {
         let trait_object = callback as &mut FnMut(Event);
         let trait_object_ptr = trait_object as *const FnMut(Event) as *mut FnMut(Event);
@@ -156,19 +157,18 @@ impl UserCallback {
     fn drop(&self) {
         self.mutex.lock().unwrap().take();
     }
-
 }
 
-
 impl EventsLoop {
-
     pub fn new() -> Self {
         // Mark this thread as the main thread of the Cocoa event system.
         //
         // This must be done before any worker threads get a chance to call it
         // (e.g., via `EventsLoopProxy::wakeup()`), causing a wrong thread to be
         // marked as the main thread.
-        unsafe { appkit::NSApp(); }
+        unsafe {
+            appkit::NSApp();
+        }
 
         EventsLoop {
             shared: Arc::new(Shared::new()),
@@ -177,7 +177,8 @@ impl EventsLoop {
     }
 
     pub fn poll_events<F>(&mut self, mut callback: F)
-        where F: FnMut(Event),
+    where
+        F: FnMut(Event),
     {
         unsafe {
             if !msg_send![class!(NSThread), isMainThread] {
@@ -200,7 +201,8 @@ impl EventsLoop {
                     NSEventMask::NSAnyEventMask.bits() | NSEventMask::NSEventMaskPressure.bits(),
                     foundation::NSDate::distantPast(cocoa::base::nil),
                     foundation::NSDefaultRunLoopMode,
-                    cocoa::base::YES);
+                    cocoa::base::YES,
+                );
 
                 let event = self.ns_event_to_event(ns_event);
 
@@ -218,7 +220,8 @@ impl EventsLoop {
     }
 
     pub fn run_forever<F>(&mut self, mut callback: F)
-        where F: FnMut(Event) -> ControlFlow
+    where
+        F: FnMut(Event) -> ControlFlow,
     {
         unsafe {
             if !msg_send![class!(NSThread), isMainThread] {
@@ -252,7 +255,8 @@ impl EventsLoop {
                     NSEventMask::NSAnyEventMask.bits() | NSEventMask::NSEventMaskPressure.bits(),
                     foundation::NSDate::distantFuture(cocoa::base::nil),
                     foundation::NSDefaultRunLoopMode,
-                    cocoa::base::YES);
+                    cocoa::base::YES,
+                );
 
                 let maybe_event = self.ns_event_to_event(ns_event);
 
@@ -297,7 +301,8 @@ impl EventsLoop {
         appkit::NSApp().sendEvent_(ns_event);
 
         let windows = self.shared.windows.lock().unwrap();
-        let maybe_window = windows.iter()
+        let maybe_window = windows
+            .iter()
             .filter_map(Weak::upgrade)
             .find(|window| window_id == window.id());
 
@@ -307,23 +312,23 @@ impl EventsLoop {
         };
 
         // Returns `Some` window if one of our windows is the key window.
-        let maybe_key_window = || windows.iter()
-            .filter_map(Weak::upgrade)
-            .find(|window| {
+        let maybe_key_window = || {
+            windows.iter().filter_map(Weak::upgrade).find(|window| {
                 let is_key_window: cocoa::base::BOOL = msg_send![*window.window, isKeyWindow];
                 is_key_window == cocoa::base::YES
-            });
+            })
+        };
 
         match event_type {
             // https://github.com/glfw/glfw/blob/50eccd298a2bbc272b4977bd162d3e4b55f15394/src/cocoa_window.m#L881
-            appkit::NSKeyUp  => {
+            appkit::NSKeyUp => {
                 if let Some(key_window) = maybe_key_window() {
                     if event_mods(ns_event).logo {
-                        let _: () = msg_send![*key_window.window, sendEvent:ns_event];
+                        let _: () = msg_send![*key_window.window, sendEvent: ns_event];
                     }
                 }
                 None
-            },
+            }
             // similar to above, but for `<Cmd-.>`, the keyDown is suppressed instead of the
             // KeyUp, and the above trick does not appear to work.
             appkit::NSKeyDown => {
@@ -335,7 +340,7 @@ impl EventsLoop {
                 } else {
                     None
                 }
-            },
+            }
             appkit::NSFlagsChanged => {
                 let mut events = std::collections::VecDeque::new();
 
@@ -376,12 +381,13 @@ impl EventsLoop {
                 }
 
                 let event = events.pop_front();
-                self.shared.pending_events
+                self.shared
+                    .pending_events
                     .lock()
                     .unwrap()
                     .extend(events.into_iter());
                 event
-            },
+            }
 
             appkit::NSMouseEntered => {
                 let window = match maybe_window.or_else(maybe_key_window) {
@@ -394,9 +400,13 @@ impl EventsLoop {
                     let ns_size = foundation::NSSize::new(0.0, 0.0);
                     let ns_rect = foundation::NSRect::new(window_point, ns_size);
                     let window_rect = window.window.convertRectFromScreen_(ns_rect);
-                    window.view.convertPoint_fromView_(window_rect.origin, cocoa::base::nil)
+                    window
+                        .view
+                        .convertPoint_fromView_(window_rect.origin, cocoa::base::nil)
                 } else {
-                    window.view.convertPoint_fromView_(window_point, cocoa::base::nil)
+                    window
+                        .view
+                        .convertPoint_fromView_(window_point, cocoa::base::nil)
                 };
 
                 let view_rect = NSView::frame(*window.view);
@@ -407,16 +417,23 @@ impl EventsLoop {
                     position: (x, y).into(),
                     modifiers: event_mods(ns_event),
                 };
-                let event = Event::WindowEvent { window_id: ::WindowId(window.id()), event: window_event };
+                let event = Event::WindowEvent {
+                    window_id: ::WindowId(window.id()),
+                    event: window_event,
+                };
                 self.shared.pending_events.lock().unwrap().push_back(event);
-                Some(into_event(WindowEvent::CursorEntered { device_id: DEVICE_ID }))
-            },
-            appkit::NSMouseExited => { Some(into_event(WindowEvent::CursorLeft { device_id: DEVICE_ID })) },
+                Some(into_event(WindowEvent::CursorEntered {
+                    device_id: DEVICE_ID,
+                }))
+            }
+            appkit::NSMouseExited => Some(into_event(WindowEvent::CursorLeft {
+                device_id: DEVICE_ID,
+            })),
 
-            appkit::NSMouseMoved |
-            appkit::NSLeftMouseDragged |
-            appkit::NSOtherMouseDragged |
-            appkit::NSRightMouseDragged => {
+            appkit::NSMouseMoved
+            | appkit::NSLeftMouseDragged
+            | appkit::NSOtherMouseDragged
+            | appkit::NSRightMouseDragged => {
                 // If the mouse movement was on one of our windows, use it.
                 // Otherwise, if one of our windows is the key window (receiving input), use it.
                 // Otherwise, return `None`.
@@ -429,28 +446,49 @@ impl EventsLoop {
 
                 let delta_x = ns_event.deltaX() as f64;
                 if delta_x != 0.0 {
-                    let motion_event = DeviceEvent::Motion { axis: 0, value: delta_x };
-                    let event = Event::DeviceEvent { device_id: DEVICE_ID, event: motion_event };
+                    let motion_event = DeviceEvent::Motion {
+                        axis: 0,
+                        value: delta_x,
+                    };
+                    let event = Event::DeviceEvent {
+                        device_id: DEVICE_ID,
+                        event: motion_event,
+                    };
                     events.push_back(event);
                 }
 
                 let delta_y = ns_event.deltaY() as f64;
                 if delta_y != 0.0 {
-                    let motion_event = DeviceEvent::Motion { axis: 1, value: delta_y };
-                    let event = Event::DeviceEvent { device_id: DEVICE_ID, event: motion_event };
+                    let motion_event = DeviceEvent::Motion {
+                        axis: 1,
+                        value: delta_y,
+                    };
+                    let event = Event::DeviceEvent {
+                        device_id: DEVICE_ID,
+                        event: motion_event,
+                    };
                     events.push_back(event);
                 }
 
                 if delta_x != 0.0 || delta_y != 0.0 {
-                    let motion_event = DeviceEvent::MouseMotion { delta: (delta_x, delta_y) };
-                    let event = Event::DeviceEvent { device_id: DEVICE_ID, event: motion_event };
+                    let motion_event = DeviceEvent::MouseMotion {
+                        delta: (delta_x, delta_y),
+                    };
+                    let event = Event::DeviceEvent {
+                        device_id: DEVICE_ID,
+                        event: motion_event,
+                    };
                     events.push_back(event);
                 }
 
                 let event = events.pop_front();
-                self.shared.pending_events.lock().unwrap().extend(events.into_iter());
+                self.shared
+                    .pending_events
+                    .lock()
+                    .unwrap()
+                    .extend(events.into_iter());
                 event
-            },
+            }
 
             appkit::NSScrollWheel => {
                 // If none of the windows received the scroll, return `None`.
@@ -460,10 +498,13 @@ impl EventsLoop {
 
                 use events::MouseScrollDelta::{LineDelta, PixelDelta};
                 let delta = if ns_event.hasPreciseScrollingDeltas() == cocoa::base::YES {
-                    PixelDelta((
-                        ns_event.scrollingDeltaX() as f64,
-                        ns_event.scrollingDeltaY() as f64,
-                    ).into())
+                    PixelDelta(
+                        (
+                            ns_event.scrollingDeltaX() as f64,
+                            ns_event.scrollingDeltaY() as f64,
+                        )
+                            .into(),
+                    )
                 } else {
                     // TODO: This is probably wrong
                     LineDelta(
@@ -472,52 +513,67 @@ impl EventsLoop {
                     )
                 };
                 let phase = match ns_event.phase() {
-                    NSEventPhase::NSEventPhaseMayBegin | NSEventPhase::NSEventPhaseBegan => TouchPhase::Started,
+                    NSEventPhase::NSEventPhaseMayBegin | NSEventPhase::NSEventPhaseBegan => {
+                        TouchPhase::Started
+                    }
                     NSEventPhase::NSEventPhaseEnded => TouchPhase::Ended,
                     _ => TouchPhase::Moved,
                 };
-                self.shared.pending_events.lock().unwrap().push_back(Event::DeviceEvent {
-                    device_id: DEVICE_ID,
-                    event: DeviceEvent::MouseWheel {
-                        delta: if ns_event.hasPreciseScrollingDeltas() == cocoa::base::YES {
-                            PixelDelta((
-                                ns_event.scrollingDeltaX() as f64,
-                                ns_event.scrollingDeltaY() as f64,
-                            ).into())
-                        } else {
-                            LineDelta(
-                                ns_event.scrollingDeltaX() as f32,
-                                ns_event.scrollingDeltaY() as f32,
-                            )
+                self.shared
+                    .pending_events
+                    .lock()
+                    .unwrap()
+                    .push_back(Event::DeviceEvent {
+                        device_id: DEVICE_ID,
+                        event: DeviceEvent::MouseWheel {
+                            delta: if ns_event.hasPreciseScrollingDeltas() == cocoa::base::YES {
+                                PixelDelta(
+                                    (
+                                        ns_event.scrollingDeltaX() as f64,
+                                        ns_event.scrollingDeltaY() as f64,
+                                    )
+                                        .into(),
+                                )
+                            } else {
+                                LineDelta(
+                                    ns_event.scrollingDeltaX() as f32,
+                                    ns_event.scrollingDeltaY() as f32,
+                                )
+                            },
                         },
-                    }
-                });
-                let window_event = WindowEvent::MouseWheel { device_id: DEVICE_ID, delta: delta, phase: phase, modifiers: event_mods(ns_event) };
+                    });
+                let window_event = WindowEvent::MouseWheel {
+                    device_id: DEVICE_ID,
+                    delta: delta,
+                    phase: phase,
+                    modifiers: event_mods(ns_event),
+                };
                 Some(into_event(window_event))
-            },
+            }
 
             appkit::NSEventTypePressure => {
                 let pressure = ns_event.pressure();
                 let stage = ns_event.stage();
-                let window_event = WindowEvent::TouchpadPressure { device_id: DEVICE_ID, pressure: pressure, stage: stage };
+                let window_event = WindowEvent::TouchpadPressure {
+                    device_id: DEVICE_ID,
+                    pressure: pressure,
+                    stage: stage,
+                };
                 Some(into_event(window_event))
-            },
+            }
 
             appkit::NSApplicationDefined => match ns_event.subtype() {
-                appkit::NSEventSubtype::NSApplicationActivatedEventType => {
-                    Some(Event::Awakened)
-                },
+                appkit::NSEventSubtype::NSApplicationActivatedEventType => Some(Event::Awakened),
                 _ => None,
             },
 
-            _  => None,
+            _ => None,
         }
     }
 
     pub fn create_proxy(&self) -> Proxy {
         Proxy {}
     }
-
 }
 
 impl Proxy {
@@ -593,9 +649,9 @@ pub fn char_to_keycode(c: char) -> Option<events::VirtualKeyCode> {
         '-' | '_' => events::VirtualKeyCode::Minus,
         ']' | '}' => events::VirtualKeyCode::RBracket,
         '[' | '{' => events::VirtualKeyCode::LBracket,
-        '\''| '"' => events::VirtualKeyCode::Apostrophe,
+        '\'' | '"' => events::VirtualKeyCode::Apostrophe,
         ';' | ':' => events::VirtualKeyCode::Semicolon,
-        '\\'| '|' => events::VirtualKeyCode::Backslash,
+        '\\' | '|' => events::VirtualKeyCode::Backslash,
         ',' | '<' => events::VirtualKeyCode::Comma,
         '/' | '?' => events::VirtualKeyCode::Slash,
         '.' | '>' => events::VirtualKeyCode::Period,
@@ -734,15 +790,12 @@ pub fn scancode_to_keycode(code: c_ushort) -> Option<events::VirtualKeyCode> {
         0x7d => events::VirtualKeyCode::Down,
         0x7e => events::VirtualKeyCode::Up,
         //0x7f =>  unkown,
-
         0xa => events::VirtualKeyCode::Caret,
         _ => return None,
     })
 }
 
-pub fn check_function_keys(
-    s: &String
-) -> Option<events::VirtualKeyCode> {
+pub fn check_function_keys(s: &String) -> Option<events::VirtualKeyCode> {
     if let Some(ch) = s.encode_utf16().next() {
         return Some(match ch {
             0xf718 => events::VirtualKeyCode::F21,
@@ -750,16 +803,14 @@ pub fn check_function_keys(
             0xf71a => events::VirtualKeyCode::F23,
             0xf71b => events::VirtualKeyCode::F24,
             _ => return None,
-        })
+        });
     }
 
     None
 }
 
 pub fn event_mods(event: cocoa::base::id) -> ModifiersState {
-    let flags = unsafe {
-        NSEvent::modifierFlags(event)
-    };
+    let flags = unsafe { NSEvent::modifierFlags(event) };
     ModifiersState {
         shift: flags.contains(NSEventModifierFlags::NSShiftKeyMask),
         ctrl: flags.contains(NSEventModifierFlags::NSControlKeyMask),
@@ -773,9 +824,7 @@ pub fn get_scancode(event: cocoa::base::id) -> c_ushort {
     // and there is no easy way to navtively retrieve the layout-dependent character.
     // In winit, we use keycode to refer to the key's character, and so this function aligns
     // AppKit's terminology with ours.
-    unsafe {
-        msg_send![event, keyCode]
-    }
+    unsafe { msg_send![event, keyCode] }
 }
 
 unsafe fn modifier_event(
@@ -784,7 +833,8 @@ unsafe fn modifier_event(
     was_key_pressed: bool,
 ) -> Option<WindowEvent> {
     if !was_key_pressed && NSEvent::modifierFlags(ns_event).contains(keymask)
-    || was_key_pressed && !NSEvent::modifierFlags(ns_event).contains(keymask) {
+        || was_key_pressed && !NSEvent::modifierFlags(ns_event).contains(keymask)
+    {
         let state = if was_key_pressed {
             ElementState::Released
         } else {

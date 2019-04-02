@@ -10,7 +10,7 @@ use winapi::shared::minwindef::{DWORD, MAX_PATH, UINT, ULONG};
 use winapi::shared::windef::{HWND, POINTL};
 use winapi::shared::winerror::S_OK;
 use winapi::um::objidl::IDataObject;
-use winapi::um::oleidl::{DROPEFFECT_COPY, DROPEFFECT_NONE, IDropTarget, IDropTargetVtbl};
+use winapi::um::oleidl::{IDropTarget, IDropTargetVtbl, DROPEFFECT_COPY, DROPEFFECT_NONE};
 use winapi::um::winnt::HRESULT;
 use winapi::um::{shellapi, unknwnbase};
 
@@ -153,12 +153,15 @@ impl FileDropHandler {
         &mut *(this as *mut _)
     }
 
-    unsafe fn iterate_filenames<F>(data_obj: *const IDataObject, callback: F) -> Option<shellapi::HDROP>
+    unsafe fn iterate_filenames<F>(
+        data_obj: *const IDataObject,
+        callback: F,
+    ) -> Option<shellapi::HDROP>
     where
         F: Fn(PathBuf),
     {
         use winapi::ctypes::wchar_t;
-        use winapi::shared::winerror::{SUCCEEDED, DV_E_FORMATETC};
+        use winapi::shared::winerror::{DV_E_FORMATETC, SUCCEEDED};
         use winapi::shared::wtypes::{CLIPFORMAT, DVASPECT_CONTENT};
         use winapi::um::objidl::{FORMATETC, TYMED_HGLOBAL};
         use winapi::um::shellapi::DragQueryFileW;

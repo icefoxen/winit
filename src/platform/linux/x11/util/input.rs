@@ -74,14 +74,7 @@ impl XConnection {
 
     #[allow(dead_code)]
     pub fn select_xkb_events(&self, device_id: c_uint, mask: c_ulong) -> Option<Flusher> {
-        let status = unsafe {
-            (self.xlib.XkbSelectEvents)(
-                self.display,
-                device_id,
-                mask,
-                mask,
-            )
-        };
+        let status = unsafe { (self.xlib.XkbSelectEvents)(self.display, device_id, mask, mask) };
         if status == ffi::True {
             Some(Flusher::new(self))
         } else {
@@ -89,7 +82,11 @@ impl XConnection {
         }
     }
 
-    pub fn query_pointer(&self, window: ffi::Window, device_id: c_int) -> Result<PointerState, XError> {
+    pub fn query_pointer(
+        &self,
+        window: ffi::Window,
+        device_id: c_int,
+    ) -> Result<PointerState, XError> {
         unsafe {
             let mut pointer_state: PointerState = mem::uninitialized();
             pointer_state.xconn = self;

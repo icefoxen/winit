@@ -1,7 +1,7 @@
 #![cfg(target_os = "macos")]
 
 use std::os::raw::c_void;
-use {LogicalSize, MonitorId, Window, WindowBuilder};
+use {MonitorId, PhysicalSize, Window, WindowBuilder};
 
 /// Additional methods on `Window` that are specific to MacOS.
 pub trait WindowExt {
@@ -86,7 +86,8 @@ pub trait WindowBuilderExt {
     /// Sets the activation policy for the window being built.
     fn with_activation_policy(self, activation_policy: ActivationPolicy) -> WindowBuilder;
     /// Enables click-and-drag behavior for the entire window, not just the titlebar.
-    fn with_movable_by_window_background(self, movable_by_window_background: bool) -> WindowBuilder;
+    fn with_movable_by_window_background(self, movable_by_window_background: bool)
+        -> WindowBuilder;
     /// Makes the titlebar transparent and allows the content to appear behind it.
     fn with_titlebar_transparent(self, titlebar_transparent: bool) -> WindowBuilder;
     /// Hides the window title.
@@ -98,7 +99,7 @@ pub trait WindowBuilderExt {
     /// Makes the window content appear behind the titlebar.
     fn with_fullsize_content_view(self, fullsize_content_view: bool) -> WindowBuilder;
     /// Build window with `resizeIncrements` property. Values must not be 0.
-    fn with_resize_increments(self, increments: LogicalSize) -> WindowBuilder;
+    fn with_resize_increments(self, increments: PhysicalSize) -> WindowBuilder;
 }
 
 impl WindowBuilderExt for WindowBuilder {
@@ -109,7 +110,10 @@ impl WindowBuilderExt for WindowBuilder {
     }
 
     #[inline]
-    fn with_movable_by_window_background(mut self, movable_by_window_background: bool) -> WindowBuilder {
+    fn with_movable_by_window_background(
+        mut self,
+        movable_by_window_background: bool,
+    ) -> WindowBuilder {
         self.platform_specific.movable_by_window_background = movable_by_window_background;
         self
     }
@@ -145,7 +149,7 @@ impl WindowBuilderExt for WindowBuilder {
     }
 
     #[inline]
-    fn with_resize_increments(mut self, increments: LogicalSize) -> WindowBuilder {
+    fn with_resize_increments(mut self, increments: PhysicalSize) -> WindowBuilder {
         self.platform_specific.resize_increments = Some(increments.into());
         self
     }

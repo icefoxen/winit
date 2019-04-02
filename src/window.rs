@@ -1,18 +1,8 @@
 use std::collections::vec_deque::IntoIter as VecDequeIter;
 
 use {
-    CreationError,
-    EventsLoop,
-    Icon,
-    LogicalPosition,
-    LogicalSize,
-    MouseCursor,
-    PhysicalPosition,
-    PhysicalSize,
-    platform,
-    Window,
-    WindowBuilder,
-    WindowId,
+    platform, CreationError, EventsLoop, Icon, MouseCursor, PhysicalPosition, PhysicalSize, Window,
+    WindowBuilder, WindowId,
 };
 
 impl WindowBuilder {
@@ -27,21 +17,21 @@ impl WindowBuilder {
 
     /// Requests the window to be of specific dimensions.
     #[inline]
-    pub fn with_dimensions(mut self, size: LogicalSize) -> WindowBuilder {
+    pub fn with_dimensions(mut self, size: PhysicalSize) -> WindowBuilder {
         self.window.dimensions = Some(size);
         self
     }
 
     /// Sets a minimum dimension size for the window
     #[inline]
-    pub fn with_min_dimensions(mut self, min_size: LogicalSize) -> WindowBuilder {
+    pub fn with_min_dimensions(mut self, min_size: PhysicalSize) -> WindowBuilder {
         self.window.min_dimensions = Some(min_size);
         self
     }
 
     /// Sets a maximum dimension size for the window
     #[inline]
-    pub fn with_max_dimensions(mut self, max_size: LogicalSize) -> WindowBuilder {
+    pub fn with_max_dimensions(mut self, max_size: PhysicalSize) -> WindowBuilder {
         self.window.max_dimensions = Some(max_size);
         self
     }
@@ -146,7 +136,7 @@ impl WindowBuilder {
         self.window.dimensions = Some(self.window.dimensions.unwrap_or_else(|| {
             if let Some(ref monitor) = self.window.fullscreen {
                 // resizing the window to the dimensions of the monitor when fullscreen
-                LogicalSize::from_physical(monitor.get_dimensions(), 1.0)
+                PhysicalSize::from_physical(monitor.get_dimensions(), 1.0)
             } else {
                 // default dimensions
                 (1024, 768).into()
@@ -158,7 +148,8 @@ impl WindowBuilder {
             &events_loop.events_loop,
             self.window,
             self.platform_specific,
-        ).map(|window| Window { window })
+        )
+        .map(|window| Window { window })
     }
 }
 
@@ -217,7 +208,7 @@ impl Window {
     ///
     /// Returns `None` if the window no longer exists.
     #[inline]
-    pub fn get_position(&self) -> Option<LogicalPosition> {
+    pub fn get_position(&self) -> Option<PhysicalPosition> {
         self.window.get_position()
     }
 
@@ -226,7 +217,7 @@ impl Window {
     ///
     /// The same conditions that apply to `get_position` apply to this method.
     #[inline]
-    pub fn get_inner_position(&self) -> Option<LogicalPosition> {
+    pub fn get_inner_position(&self) -> Option<PhysicalPosition> {
         self.window.get_inner_position()
     }
 
@@ -236,7 +227,7 @@ impl Window {
     ///
     /// This is a no-op if the window has already been closed.
     #[inline]
-    pub fn set_position(&self, position: LogicalPosition) {
+    pub fn set_position(&self, position: PhysicalPosition) {
         self.window.set_position(position)
     }
 
@@ -244,11 +235,11 @@ impl Window {
     ///
     /// The client area is the content of the window, excluding the title bar and borders.
     ///
-    /// Converting the returned `LogicalSize` to `PhysicalSize` produces the size your framebuffer should be.
+    /// Converting the returned `PhysicalSize` to `PhysicalSize` produces the size your framebuffer should be.
     ///
     /// Returns `None` if the window no longer exists.
     #[inline]
-    pub fn get_inner_size(&self) -> Option<LogicalSize> {
+    pub fn get_inner_size(&self) -> Option<PhysicalSize> {
         self.window.get_inner_size()
     }
 
@@ -259,7 +250,7 @@ impl Window {
     ///
     /// Returns `None` if the window no longer exists.
     #[inline]
-    pub fn get_outer_size(&self) -> Option<LogicalSize> {
+    pub fn get_outer_size(&self) -> Option<PhysicalSize> {
         self.window.get_outer_size()
     }
 
@@ -269,19 +260,19 @@ impl Window {
     ///
     /// This is a no-op if the window has already been closed.
     #[inline]
-    pub fn set_inner_size(&self, size: LogicalSize) {
+    pub fn set_inner_size(&self, size: PhysicalSize) {
         self.window.set_inner_size(size)
     }
 
     /// Sets a minimum dimension size for the window.
     #[inline]
-    pub fn set_min_dimensions(&self, dimensions: Option<LogicalSize>) {
+    pub fn set_min_dimensions(&self, dimensions: Option<PhysicalSize>) {
         self.window.set_min_dimensions(dimensions)
     }
 
     /// Sets a maximum dimension size for the window.
     #[inline]
-    pub fn set_max_dimensions(&self, dimensions: Option<LogicalSize>) {
+    pub fn set_max_dimensions(&self, dimensions: Option<PhysicalSize>) {
         self.window.set_max_dimensions(dimensions)
     }
 
@@ -326,7 +317,7 @@ impl Window {
 
     /// Changes the position of the cursor in window coordinates.
     #[inline]
-    pub fn set_cursor_position(&self, position: LogicalPosition) -> Result<(), String> {
+    pub fn set_cursor_position(&self, position: PhysicalPosition) -> Result<(), String> {
         self.window.set_cursor_position(position)
     }
 
@@ -396,7 +387,7 @@ impl Window {
 
     /// Sets location of IME candidate box in client area coordinates relative to the top left.
     #[inline]
-    pub fn set_ime_spot(&self, position: LogicalPosition) {
+    pub fn set_ime_spot(&self, position: PhysicalPosition) {
         self.window.set_ime_spot(position)
     }
 
@@ -412,7 +403,9 @@ impl Window {
     #[inline]
     pub fn get_available_monitors(&self) -> AvailableMonitorsIter {
         let data = self.window.get_available_monitors();
-        AvailableMonitorsIter { data: data.into_iter() }
+        AvailableMonitorsIter {
+            data: data.into_iter(),
+        }
     }
 
     /// Returns the primary monitor of the system.
@@ -420,7 +413,9 @@ impl Window {
     /// This is the same as `EventsLoop::get_primary_monitor`, and is provided for convenience.
     #[inline]
     pub fn get_primary_monitor(&self) -> MonitorId {
-        MonitorId { inner: self.window.get_primary_monitor() }
+        MonitorId {
+            inner: self.window.get_primary_monitor(),
+        }
     }
 
     #[inline]
@@ -454,7 +449,7 @@ impl Iterator for AvailableMonitorsIter {
 /// Identifier for a monitor.
 #[derive(Debug, Clone)]
 pub struct MonitorId {
-    pub(crate) inner: platform::MonitorId
+    pub(crate) inner: platform::MonitorId,
 }
 
 impl MonitorId {

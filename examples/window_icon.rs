@@ -2,9 +2,9 @@
 // `Icon::from_path` won't be available otherwise, though for your own applications, you could use
 // `Icon::from_rgba` if you don't want to depend on the `image` crate.
 
-extern crate winit;
 #[cfg(feature = "icon_loading")]
 extern crate image;
+extern crate winit;
 
 #[cfg(feature = "icon_loading")]
 fn main() {
@@ -46,8 +46,8 @@ fn main() {
                         (DESIRED_SIZE, DESIRED_SIZE)
                     } else {
                         // Note that this will never divide by zero, due to the previous condition.
-                        let aspect_adjustment = DESIRED_SIZE as f64
-                            / std::cmp::max(width, height) as f64;
+                        let aspect_adjustment =
+                            DESIRED_SIZE as f64 / std::cmp::max(width, height) as f64;
                         (
                             (width as f64 * aspect_adjustment) as u32,
                             (height as f64 * aspect_adjustment) as u32,
@@ -69,15 +69,10 @@ fn main() {
                     );
 
                     let mut canvas = image::ImageBuffer::new(DESIRED_SIZE, DESIRED_SIZE);
-                    image::imageops::replace(
-                        &mut canvas,
-                        &icon,
-                        offset_x,
-                        offset_y,
-                    );
+                    image::imageops::replace(&mut canvas, &icon, offset_x, offset_y);
 
                     window.set_window_icon(Some(canvas.into()));
-                },
+                }
                 _ => (),
             }
         }
@@ -88,7 +83,8 @@ fn main() {
 #[cfg(not(feature = "icon_loading"))]
 fn main() {
     print!(
-r#"This example requires the `icon_loading` feature:
+        r#"This example requires the `icon_loading` feature:
     cargo run --example window_icon --features icon_loading
-"#);
+"#
+    );
 }
