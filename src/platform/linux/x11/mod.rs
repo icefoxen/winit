@@ -37,7 +37,7 @@ use events::ModifiersState;
 use platform::PlatformSpecificWindowBuilderAttributes;
 use {
     ControlFlow, CreationError, DeviceEvent, Event, EventsLoopClosed, KeyboardInput,
-    PhysicalPosition, PhysicalSize, WindowAttributes, WindowEvent,
+    PhysicalPosition, WindowAttributes, WindowEvent,
 };
 
 pub struct EventsLoop {
@@ -505,7 +505,6 @@ impl EventsLoop {
                     let new_inner_size = (xev.width as u32, xev.height as u32);
                     let new_inner_position = (xev.x as i32, xev.y as i32);
 
-                    let mut monitor = window.get_current_monitor(); // This must be done *before* locking!
                     let mut shared_state_lock = window.shared_state.lock();
 
                     let (mut resized, moved) = {
@@ -577,7 +576,7 @@ impl EventsLoop {
                             });
                         let new_hidpi_factor = {
                             let window_rect = util::AaRect::new(new_outer_position, new_inner_size);
-                            monitor = self.xconn.get_monitor_for_window(Some(window_rect));
+                            let mut monitor = self.xconn.get_monitor_for_window(Some(window_rect));
                             let new_hidpi_factor = monitor.hidpi_factor;
                             shared_state_lock.last_monitor = Some(monitor.clone());
                             new_hidpi_factor
@@ -888,9 +887,10 @@ impl EventsLoop {
                             util::maybe_change(&mut shared_state_lock.cursor_pos, new_cursor_pos)
                         });
                         if cursor_moved == Some(true) {
+                            // WINOT TODO: Untangle this
                             let dpi_factor =
                                 self.with_window(xev.event, |window| window.get_hidpi_factor());
-                            if let Some(dpi_factor) = dpi_factor {
+                            if let Some(_) = dpi_factor {
                                 let position = PhysicalPosition::from((
                                     xev.event_x as f64,
                                     xev.event_y as f64,
@@ -1000,6 +1000,7 @@ impl EventsLoop {
                             event: CursorEntered { device_id },
                         });
 
+                        // WINOT TODO: Untangle this
                         if let Some(dpi_factor) =
                             self.with_window(xev.event, |window| window.get_hidpi_factor())
                         {
@@ -1047,11 +1048,6 @@ impl EventsLoop {
                     ffi::XI_FocusIn => {
                         let xev: &ffi::XIFocusInEvent = unsafe { &*(xev.data as *const _) };
 
-                        let dpi_factor =
-                            match self.with_window(xev.event, |window| window.get_hidpi_factor()) {
-                                Some(dpi_factor) => dpi_factor,
-                                None => return,
-                            };
                         let window_id = mkwid(xev.event);
 
                         self.ime
@@ -1108,6 +1104,7 @@ impl EventsLoop {
                             ffi::XI_TouchEnd => TouchPhase::Ended,
                             _ => unreachable!(),
                         };
+                        // WINOT TODO: Untangle this
                         let dpi_factor =
                             self.with_window(xev.event, |window| window.get_hidpi_factor());
                         if let Some(dpi_factor) = dpi_factor {

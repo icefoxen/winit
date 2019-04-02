@@ -864,7 +864,6 @@ impl UnownedWindow {
 
     #[inline]
     pub fn set_inner_size(&self, logical_size: PhysicalSize) {
-        let dpi_factor = self.get_hidpi_factor();
         let (width, height) = logical_size.into();
         self.set_inner_size_physical(width, height);
     }
@@ -963,7 +962,6 @@ impl UnownedWindow {
             (window_size.clone(), window_size)
         };
 
-        let dpi_factor = self.get_hidpi_factor();
         let min_dimensions = logical_min.map(Into::into);
         let max_dimensions = logical_max.map(Into::into);
         self.update_normal_hints(|normal_hints| {
