@@ -40,7 +40,7 @@ use platform::platform::window::adjust_size;
 use platform::platform::window_state::{CursorFlags, WindowFlags, WindowState};
 use platform::platform::{event, util, wrap_device_id, WindowId, DEVICE_ID};
 use {
-    ControlFlow, Event, EventsLoopClosed, KeyboardInput, PhysicalPosition, PhysicalSize,
+    ControlFlow, Event, EventsLoopClosed, KeyboardInput, PhysicalPosition,
     PhysicalSize, WindowEvent, WindowId as SuperWindowId,
 };
 
@@ -563,7 +563,7 @@ unsafe fn callback_inner(window: HWND, msg: UINT, wparam: WPARAM, lparam: LPARAM
             if (*windowpos).flags & winuser::SWP_NOMOVE != winuser::SWP_NOMOVE {
                 let dpi_factor = get_hwnd_scale_factor(window);
                 let logical_position =
-                    PhysicalPosition::from_physical(((*windowpos).x, (*windowpos).y), dpi_factor);
+                    PhysicalPosition::from(((*windowpos).x, (*windowpos).y));
                 send_event(Event::WindowEvent {
                     window_id: SuperWindowId(WindowId(window)),
                     event: Moved(logical_position),
@@ -580,7 +580,7 @@ unsafe fn callback_inner(window: HWND, msg: UINT, wparam: WPARAM, lparam: LPARAM
             let h = HIWORD(lparam as DWORD) as u32;
 
             let dpi_factor = get_hwnd_scale_factor(window);
-            let logical_size = PhysicalSize::from_physical((w, h), dpi_factor);
+            let logical_size = PhysicalSize::from((w, h));
             let event = Event::WindowEvent {
                 window_id: SuperWindowId(WindowId(window)),
                 event: Resized(logical_size),
@@ -668,7 +668,7 @@ unsafe fn callback_inner(window: HWND, msg: UINT, wparam: WPARAM, lparam: LPARAM
             }
 
             let dpi_factor = get_hwnd_scale_factor(window);
-            let position = PhysicalPosition::from_physical((x as f64, y as f64), dpi_factor);
+            let position = PhysicalPosition::from((x as f64, y as f64));
 
             send_event(Event::WindowEvent {
                 window_id: SuperWindowId(WindowId(window)),
@@ -1082,7 +1082,7 @@ unsafe fn callback_inner(window: HWND, msg: UINT, wparam: WPARAM, lparam: LPARAM
                 for input in &inputs {
                     let x = (input.x as f64) / 100f64;
                     let y = (input.y as f64) / 100f64;
-                    let location = PhysicalPosition::from_physical((x, y), dpi_factor);
+                    let location = PhysicalPosition::from((x, y));
                     send_event(Event::WindowEvent {
                         window_id: SuperWindowId(WindowId(window)),
                         event: WindowEvent::Touch(Touch {
@@ -1176,7 +1176,7 @@ unsafe fn callback_inner(window: HWND, msg: UINT, wparam: WPARAM, lparam: LPARAM
                             let ex_style =
                                 winuser::GetWindowLongA(window, winuser::GWL_EXSTYLE) as DWORD;
                             if let Some(min_size) = window_state.min_size {
-                                let min_size = min_size.to_physical(window_state.dpi_factor);
+                                let min_size = min_size;
                                 let (width, height) = adjust_size(min_size, style, ex_style);
                                 (*mmi).ptMinTrackSize = POINT {
                                     x: width as i32,
@@ -1184,7 +1184,7 @@ unsafe fn callback_inner(window: HWND, msg: UINT, wparam: WPARAM, lparam: LPARAM
                                 };
                             }
                             if let Some(max_size) = window_state.max_size {
-                                let max_size = max_size.to_physical(window_state.dpi_factor);
+                                let max_size = max_size;
                                 let (width, height) = adjust_size(max_size, style, ex_style);
                                 (*mmi).ptMaxTrackSize = POINT {
                                     x: width as i32,
@@ -1266,7 +1266,7 @@ unsafe fn callback_inner(window: HWND, msg: UINT, wparam: WPARAM, lparam: LPARAM
                 let width = LOWORD(lparam as DWORD) as u32;
                 let height = HIWORD(lparam as DWORD) as u32;
                 let (adjusted_width, adjusted_height): (u32, u32) =
-                    PhysicalSize::from_logical((width, height), scale_factor).into();
+                    PhysicalSize::from((width, height)).into();
                 // We're not done yet! `SetWindowPos` needs the window size, not the client area size.
                 let mut rect = RECT {
                     top: 0,

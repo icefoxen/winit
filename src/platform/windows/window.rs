@@ -25,7 +25,7 @@ use platform::platform::util;
 use platform::platform::window_state::{CursorFlags, SavedWindow, WindowFlags, WindowState};
 use platform::platform::{PlatformSpecificWindowBuilderAttributes, WindowId};
 use {
-    CreationError, Icon, MonitorId as RootMonitorId, MouseCursor, PhysicalPosition, PhysicalSize,
+    CreationError, Icon, MonitorId as RootMonitorId, MouseCursor, PhysicalPosition,
     PhysicalSize, WindowAttributes,
 };
 
@@ -90,7 +90,7 @@ impl Window {
     pub fn get_position(&self) -> Option<PhysicalPosition> {
         self.get_position_physical().map(|physical_position| {
             let dpi_factor = self.get_hidpi_factor();
-            PhysicalPosition::from_physical(physical_position, dpi_factor)
+            PhysicalPosition::from(physical_position)
         })
     }
 
@@ -106,7 +106,7 @@ impl Window {
     pub fn get_inner_position(&self) -> Option<PhysicalPosition> {
         self.get_inner_position_physical().map(|physical_position| {
             let dpi_factor = self.get_hidpi_factor();
-            PhysicalPosition::from_physical(physical_position, dpi_factor)
+            PhysicalPosition::from(physical_position)
         })
     }
 
@@ -128,7 +128,7 @@ impl Window {
     #[inline]
     pub fn set_position(&self, logical_position: PhysicalPosition) {
         let dpi_factor = self.get_hidpi_factor();
-        let (x, y) = logical_position.to_physical(dpi_factor).into();
+        let (x, y) = logical_position.into();
         self.set_position_physical(x, y);
     }
 
@@ -147,7 +147,7 @@ impl Window {
     pub fn get_inner_size(&self) -> Option<PhysicalSize> {
         self.get_inner_size_physical().map(|physical_size| {
             let dpi_factor = self.get_hidpi_factor();
-            PhysicalSize::from_physical(physical_size, dpi_factor)
+            PhysicalSize::from(physical_size)
         })
     }
 
@@ -164,7 +164,7 @@ impl Window {
     pub fn get_outer_size(&self) -> Option<PhysicalSize> {
         self.get_outer_size_physical().map(|physical_size| {
             let dpi_factor = self.get_hidpi_factor();
-            PhysicalSize::from_physical(physical_size, dpi_factor)
+            PhysicalSize::from(physical_size)
         })
     }
 
@@ -202,7 +202,7 @@ impl Window {
     #[inline]
     pub fn set_inner_size(&self, logical_size: PhysicalSize) {
         let dpi_factor = self.get_hidpi_factor();
-        let (width, height) = logical_size.to_physical(dpi_factor).into();
+        let (width, height) = logical_size.into();
         self.set_inner_size_physical(width, height);
     }
 
@@ -217,7 +217,7 @@ impl Window {
     pub fn set_min_dimensions(&self, logical_size: Option<PhysicalSize>) {
         let physical_size = logical_size.map(|logical_size| {
             let dpi_factor = self.get_hidpi_factor();
-            logical_size.to_physical(dpi_factor).into()
+            logical_size.into()
         });
         self.set_min_dimensions_physical(physical_size);
     }
@@ -233,7 +233,7 @@ impl Window {
     pub fn set_max_dimensions(&self, logical_size: Option<PhysicalSize>) {
         let physical_size = logical_size.map(|logical_size| {
             let dpi_factor = self.get_hidpi_factor();
-            logical_size.to_physical(dpi_factor).into()
+            logical_size.into()
         });
         self.set_max_dimensions_physical(physical_size);
     }
@@ -322,7 +322,7 @@ impl Window {
     #[inline]
     pub fn set_cursor_position(&self, logical_position: PhysicalPosition) -> Result<(), String> {
         let dpi_factor = self.get_hidpi_factor();
-        let (x, y) = logical_position.to_physical(dpi_factor).into();
+        let (x, y) = logical_position.into();
         self.set_cursor_position_physical(x, y)
     }
 
