@@ -25,6 +25,7 @@ pub(super) struct EventProcessor<T: 'static> {
     pub(super) target: Rc<RootELW<T>>,
     pub(super) mod_keymap: ModifierKeymap,
     pub(super) device_mod_state: ModifierKeyState,
+    pub(super) cursor_position: LogicalPosition,
 }
 
 impl<T: 'static> EventProcessor<T> {
@@ -659,6 +660,7 @@ impl<T: 'static> EventProcessor<T> {
                                     state,
                                     button: Left,
                                     modifiers,
+                                    position: self.cursor_position,
                                 },
                             }),
                             ffi::Button2 => callback(Event::WindowEvent {
@@ -668,6 +670,7 @@ impl<T: 'static> EventProcessor<T> {
                                     state,
                                     button: Middle,
                                     modifiers,
+                                    position: self.cursor_position,
                                 },
                             }),
                             ffi::Button3 => callback(Event::WindowEvent {
@@ -677,6 +680,7 @@ impl<T: 'static> EventProcessor<T> {
                                     state,
                                     button: Right,
                                     modifiers,
+                                    position: self.cursor_position,
                                 },
                             }),
 
@@ -710,6 +714,7 @@ impl<T: 'static> EventProcessor<T> {
                                     state,
                                     button: Other(x as u8),
                                     modifiers,
+                                    position: self.cursor_position,
                                 },
                             }),
                         }
@@ -735,6 +740,7 @@ impl<T: 'static> EventProcessor<T> {
                                     (xev.event_x as f64, xev.event_y as f64),
                                     dpi_factor,
                                 );
+                                self.cursor_position = position;
                                 callback(Event::WindowEvent {
                                     window_id,
                                     event: CursorMoved {
@@ -861,6 +867,7 @@ impl<T: 'static> EventProcessor<T> {
                                 .expect("Failed to query pointer device")
                                 .get_modifier_state();
 
+                            self.cursor_position = position;
                             callback(Event::WindowEvent {
                                 window_id,
                                 event: CursorMoved {
@@ -919,6 +926,7 @@ impl<T: 'static> EventProcessor<T> {
                             (xev.event_x as f64, xev.event_y as f64),
                             dpi_factor,
                         );
+                        self.cursor_position = position;
                         callback(Event::WindowEvent {
                             window_id,
                             event: CursorMoved {

@@ -1,5 +1,6 @@
 use std::sync::{Arc, Mutex};
 
+use crate::dpi::LogicalPosition;
 use crate::event::{
     DeviceEvent, ElementState, ModifiersState, MouseButton, MouseScrollDelta, TouchPhase,
     WindowEvent,
@@ -40,6 +41,7 @@ pub fn implement_pointer<T: 'static>(
         let mut axis_buffer = None;
         let mut axis_discrete_buffer = None;
         let mut axis_state = TouchPhase::Ended;
+        let mut cursor_position: LogicalPosition = LogicalPosition::from((0.0, 0.0));
 
         pointer.implement_closure(
             move |evt, pointer| {
@@ -54,6 +56,7 @@ pub fn implement_pointer<T: 'static>(
                         ..
                     } => {
                         let wid = store.find_wid(&surface);
+                        cursor_position = (surface_x, surface_y).into();
                         if let Some(wid) = wid {
                             mouse_focus = Some(wid);
                             sink.send_window_event(
@@ -69,7 +72,7 @@ pub fn implement_pointer<T: 'static>(
                                     device_id: crate::event::DeviceId(
                                         crate::platform_impl::DeviceId::Wayland(DeviceId),
                                     ),
-                                    position: (surface_x, surface_y).into(),
+                                    position: cursor_position,
                                     modifiers: modifiers_tracker.lock().unwrap().clone(),
                                 },
                                 wid,
@@ -98,12 +101,13 @@ pub fn implement_pointer<T: 'static>(
                         ..
                     } => {
                         if let Some(wid) = mouse_focus {
+                            cursor_position = (surface_x, surface_y).into();
                             sink.send_window_event(
                                 WindowEvent::CursorMoved {
                                     device_id: crate::event::DeviceId(
                                         crate::platform_impl::DeviceId::Wayland(DeviceId),
                                     ),
-                                    position: (surface_x, surface_y).into(),
+                                    position: cursor_position,
                                     modifiers: modifiers_tracker.lock().unwrap().clone(),
                                 },
                                 wid,
@@ -132,6 +136,7 @@ pub fn implement_pointer<T: 'static>(
                                     state,
                                     button,
                                     modifiers: modifiers_tracker.lock().unwrap().clone(),
+                                    position: cursor_position,
                                 },
                                 wid,
                             );

@@ -1,4 +1,10 @@
-#![cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"))]
+#![cfg(any(
+    target_os = "linux",
+    target_os = "dragonfly",
+    target_os = "freebsd",
+    target_os = "netbsd",
+    target_os = "openbsd"
+))]
 
 mod dnd;
 mod event_processor;
@@ -193,6 +199,7 @@ impl<T: 'static> EventLoop<T> {
             xi2ext,
             mod_keymap,
             device_mod_state: Default::default(),
+            cursor_position: (0.0, 0.0).into(),
         };
 
         // Register for device hotplug events
